@@ -207,26 +207,24 @@ function findProjectRoot(startDir: string = process.cwd()): string | null {
   return null;
 }
 
-// COAIA-specific storage management for structural tension charts
-function getCoaiaStoragePath(chartType?: 'active' | 'completed' | 'templates'): string {
+// COAIA-specific storage management for structural tension charts with flexible contexts
+function getCoaiaStoragePath(context?: string): string {
+  const filename = context ? `charts-${context}.jsonl` : 'charts.jsonl';
   const projectRoot = findProjectRoot();
   
   if (projectRoot) {
     const coaiaDir = path.join(projectRoot, '.coaia');
-    
-    if (existsSync(coaiaDir) || chartType) {
-      // Use project-local .coaia directory
-      const chartSubdir = chartType || 'active';
-      return path.join(coaiaDir, `${chartSubdir}-charts.jsonl`);
+    if (existsSync(coaiaDir)) {
+      return path.join(coaiaDir, filename);
     }
   }
   
   // Fallback to configured path or default
   if (memoryPath) {
-    if (chartType && memoryPath.endsWith('.jsonl')) {
+    if (context && memoryPath.endsWith('.jsonl')) {
       const dir = path.dirname(memoryPath);
       const name = path.basename(memoryPath, '.jsonl');
-      return path.join(dir, `${name}-${chartType}.jsonl`);
+      return path.join(dir, `${name}-${context}.jsonl`);
     }
     return memoryPath;
   }
@@ -251,6 +249,7 @@ interface Entity {
     parentChart?: string;
     parentActionStep?: string;
     level?: number;
+    context?: string;
     createdAt?: string;
     updatedAt?: string;
   };
@@ -313,6 +312,39 @@ class KnowledgeGraphManager {
     return null;
   }
 
+  // COAIA context-aware methods (similar to AIM approach but for structural tension charts)
+  private async loadCoaiaGraph(context?: string): Promise<KnowledgeGraph> {
+    const filePath = getCoaiaStoragePath(context);
+    try {
+      const data = await fs.readFile(filePath, "utf-8");
+      const lines = data.split("\n").filter(line => line.trim() !== "" && !line.startsWith("#"));
+      return lines.reduce((graph: KnowledgeGraph, line) => {
+        const item = JSON.parse(line);
+        if (item.type === "entity") graph.entities.push(item as Entity);
+        if (item.type === "relation") graph.relations.push(item as Relation);
+        return graph;
+      }, { entities: [], relations: [] });
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && (error as any).code === "ENOENT") {
+        return { entities: [], relations: [] };
+      }
+      throw error;
+    }
+  }
+
+  private async saveCoaiaGraph(graph: KnowledgeGraph, context?: string): Promise<void> {
+    const filePath = getCoaiaStoragePath(context);
+    const lines = [
+      ...graph.entities.map(e => JSON.stringify({ type: "entity", ...e })),
+      ...graph.relations.map(r => JSON.stringify({ type: "relation", ...r })),
+    ];
+    
+    // Ensure directory exists
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, lines.join("\n"));
+  }
+
+  // Legacy saveGraph method for backward compatibility
   private async saveGraph(graph: KnowledgeGraph): Promise<void> {
     const lines = [
       ...graph.entities.map(e => JSON.stringify({ type: "entity", ...e })),
@@ -1069,37 +1101,39 @@ Action step: "${actionStepTitle}"
     await fs.mkdir(coaiaDir, { recursive: true });
     await fs.mkdir(path.join(coaiaDir, 'templates'), { recursive: true });
     
-    // Initialize chart files if they don't exist
-    const chartFiles = ['active-charts.jsonl', 'completed-charts.jsonl', 'templates/common-goals.jsonl'];
-    
-    for (const file of chartFiles) {
-      const filePath = path.join(coaiaDir, file);
-      if (!existsSync(filePath)) {
-        await fs.writeFile(filePath, '', 'utf-8');
+    // Initialize default chart file (master database equivalent)
+    const defaultChartFile = path.join(coaiaDir, 'charts.jsonl');
+    if (!existsSync(defaultChartFile)) {
+      await fs.writeFile(defaultChartFile, '', 'utf-8');
+    }
+
+    // Create sample context files to demonstrate the concept
+    const sampleContexts = ['work', 'personal', 'learning'];
+    for (const context of sampleContexts) {
+      const contextFile = path.join(coaiaDir, `charts-${context}.jsonl`);
+      if (!existsSync(contextFile)) {
+        await fs.writeFile(contextFile, `# COAIA Charts for ${context} context\n`, 'utf-8');
       }
     }
 
-    // Create a sample template for common structural tension patterns
-    const templatePath = path.join(coaiaDir, 'templates', 'common-goals.jsonl');
+    // Create template files
+    const templatePath = path.join(coaiaDir, 'templates', 'common-goals.txt');
     const templateContent = [
       '# COAIA Memory - Structural Tension Chart Templates',
-      '# These are common patterns for structural tension charts',
-      '# Copy and customize for your specific desired outcomes',
+      '# Use different contexts for different areas of life/work',
+      '# Examples: charts-work.jsonl, charts-personal.jsonl, charts-health.jsonl',
       '',
-      '## Learning/Skill Development Template:',
-      '# Desired Outcome: "Master [specific skill] for [specific context]"',
-      '# Current Reality: "Currently know [current level] in [skill area]"',
-      '# Action Steps: ["Complete foundational course", "Practice with real project", "Get feedback from expert"]',
+      '## Context Usage:',
+      '# Default/Master: charts.jsonl (no context specified)',
+      '# Work context: charts-work.jsonl (context: "work")', 
+      '# Personal context: charts-personal.jsonl (context: "personal")',
+      '# Health context: charts-health.jsonl (context: "health")',
+      '# Learning context: charts-learning.jsonl (context: "learning")',
       '',
-      '## Project Creation Template:', 
-      '# Desired Outcome: "Launch [specific deliverable] that [specific value]"',
-      '# Current Reality: "Have [current resources/progress] and [current constraints]"',
-      '# Action Steps: ["Define requirements and scope", "Build MVP/prototype", "Test with target users", "Refine and launch"]',
-      '',
-      '## Relationship/Communication Template:',
-      '# Desired Outcome: "Establish [specific relationship outcome]"', 
-      '# Current Reality: "Current relationship dynamic is [honest assessment]"',
-      '# Action Steps: ["Have initial conversation about goals", "Implement new communication pattern", "Regular check-ins and adjustments"]'
+      '## Template Patterns:',
+      '# Focus on what you want to CREATE (not solve or fix)',
+      '# Action steps ARE structural tension charts (can be telescoped)',
+      '# Current reality must be factual, not "ready to begin"'
     ].join('\n');
     
     await fs.writeFile(templatePath, templateContent);
@@ -1107,22 +1141,24 @@ Action step: "${actionStepTitle}"
     const structure = {
       location: coaiaDir,
       files: {
-        'active-charts.jsonl': 'Charts currently being worked on',
-        'completed-charts.jsonl': 'Successfully achieved charts for learning patterns',  
-        'templates/common-goals.jsonl': 'Reusable patterns for common types of desired outcomes'
+        'charts.jsonl': 'Master/default chart database',
+        'charts-work.jsonl': 'Work-related structural tension charts',
+        'charts-personal.jsonl': 'Personal goals and projects', 
+        'charts-learning.jsonl': 'Learning and skill development charts',
+        'templates/common-goals.txt': 'Usage patterns and methodology guidance'
       }
     };
 
     return {
-      message: `✅ COAIA project initialized at ${coaiaDir}. This project now has dedicated structural tension chart organization.`,
+      message: `✅ COAIA project initialized at ${coaiaDir}. Multiple chart contexts available (default, work, personal, learning). Create additional contexts as needed.`,
       structure
     };
   }
 
-  async listCoaiaProjects(): Promise<{ current_project?: string; coaia_structure?: any; global_charts: number; project_charts?: number }> {
+  async listCoaiaProjects(): Promise<{ current_project?: string; coaia_contexts?: any; global_charts: number; project_contexts?: any }> {
     const result: any = {
       global_charts: 0,
-      project_charts: undefined
+      project_contexts: undefined
     };
 
     // Check global charts
@@ -1140,17 +1176,22 @@ Action step: "${actionStepTitle}"
       if (existsSync(coaiaDir)) {
         result.current_project = projectRoot;
         
-        // Count charts in project files
-        const chartFiles = ['active-charts.jsonl', 'completed-charts.jsonl'];
-        let projectChartCount = 0;
-        
-        for (const file of chartFiles) {
-          const filePath = path.join(coaiaDir, file);
-          if (existsSync(filePath)) {
+        // Find all chart files in .coaia directory
+        try {
+          const files = await fs.readdir(coaiaDir);
+          const chartFiles = files.filter(file => file.endsWith('.jsonl') && file.startsWith('charts'));
+          
+          const contexts: any = {};
+          let totalProjectCharts = 0;
+          
+          for (const file of chartFiles) {
+            const filePath = path.join(coaiaDir, file);
+            const contextName = file === 'charts.jsonl' ? 'default' : file.replace('charts-', '').replace('.jsonl', '');
+            
             try {
               const content = await fs.readFile(filePath, 'utf-8');
               const lines = content.split('\n').filter(line => line.trim() && !line.startsWith('#'));
-              projectChartCount += lines.filter(line => {
+              const chartCount = lines.filter(line => {
                 try {
                   const item = JSON.parse(line);
                   return item.type === 'entity' && item.entityType === 'structural_tension_chart';
@@ -1158,69 +1199,194 @@ Action step: "${actionStepTitle}"
                   return false;
                 }
               }).length;
+              
+              contexts[contextName] = {
+                file: file,
+                path: filePath,
+                charts: chartCount
+              };
+              totalProjectCharts += chartCount;
             } catch {
               // File not readable, skip
+              contexts[contextName] = {
+                file: file,
+                path: filePath,
+                charts: 0
+              };
             }
           }
+          
+          result.project_contexts = contexts;
+          result.total_project_charts = totalProjectCharts;
+          result.coaia_structure = {
+            directory: coaiaDir,
+            available_contexts: Object.keys(contexts).sort(),
+            templates: path.join(coaiaDir, 'templates')
+          };
+        } catch {
+          // Directory not readable
+          result.project_contexts = {};
         }
-        
-        result.project_charts = projectChartCount;
-        result.coaia_structure = {
-          active_charts: path.join(coaiaDir, 'active-charts.jsonl'),
-          completed_charts: path.join(coaiaDir, 'completed-charts.jsonl'),
-          templates: path.join(coaiaDir, 'templates')
-        };
       }
     }
 
     return result;
   }
 
-  async moveChartToCompleted(chartId: string): Promise<{ message: string }> {
-    const projectRoot = findProjectRoot();
-    if (!projectRoot) {
-      throw new Error('No project detected or no .coaia directory exists');
-    }
-
-    const coaiaDir = path.join(projectRoot, '.coaia');
-    if (!existsSync(coaiaDir)) {
-      throw new Error('No .coaia directory found. Run initialize_coaia_project first.');
-    }
-
-    // Load chart from active charts or global storage
-    const graph = await this.loadGraph();
-    const chart = graph.entities.find(e => 
-      e.entityType === 'structural_tension_chart' && e.metadata?.chartId === chartId
+  // Context-aware structural tension chart methods
+  async createStructuralTensionChartInContext(
+    desiredOutcome: string,
+    currentReality: string,
+    dueDate: string,
+    context?: string,
+    actionSteps?: string[]
+  ): Promise<{ chartId: string; entities: Entity[]; relations: Relation[]; context: string }> {
+    // Use the existing validation logic
+    const problemSolvingWords = ['fix', 'solve', 'eliminate', 'prevent', 'stop', 'avoid', 'reduce', 'remove'];
+    const detectedProblemWords = problemSolvingWords.filter(word => 
+      desiredOutcome.toLowerCase().includes(word)
     );
-
-    if (!chart) {
-      throw new Error(`Chart ${chartId} not found`);
-    }
-
-    // Get all related entities for this chart
-    const relatedEntities = graph.entities.filter(e => e.metadata?.chartId === chartId);
-    const relatedRelations = graph.relations.filter(r => 
-      relatedEntities.some(e => e.name === r.from) || 
-      relatedEntities.some(e => e.name === r.to)
-    );
-
-    // Write to completed charts file
-    const completedPath = path.join(coaiaDir, 'completed-charts.jsonl');
-    const chartData = [
-      ...relatedEntities.map(e => JSON.stringify({ type: "entity", ...e })),
-      ...relatedRelations.map(r => JSON.stringify({ type: "relation", ...r })),
-      `# Chart ${chartId} completed on ${new Date().toISOString()}`
-    ].join('\n') + '\n';
     
-    await fs.appendFile(completedPath, chartData);
+    if (detectedProblemWords.length > 0) {
+      throw new Error(`🌊 CREATIVE ORIENTATION REQUIRED
 
-    // Remove from active storage (global or project active file)  
-    const entityNames = relatedEntities.map(e => e.name);
-    await this.deleteEntities(entityNames);
+Desired Outcome: "${desiredOutcome}"
 
-    return {
-      message: `✅ Chart ${chartId} moved to completed charts. Chart and all related entities archived in .coaia/completed-charts.jsonl`
+❌ **Problem**: Contains problem-solving language: "${detectedProblemWords.join(', ')}"
+📚 **Principle**: Structural Tension Charts use creative orientation - focus on what you want to CREATE, not what you want to eliminate.
+
+🎯 **Reframe Your Outcome**:
+Instead of elimination → Creation focus
+
+✅ **Examples**:
+- Instead of: "Fix communication problems"
+- Use: "Establish clear, effective communication practices"
+
+**Why This Matters**: Problem-solving creates oscillating patterns. Creative orientation creates advancing patterns toward desired outcomes.`);
+    }
+
+    // Create chart using COAIA context system
+    const graph = await this.loadCoaiaGraph(context);
+    const chartId = `chart_${Date.now()}`;
+    
+    // Create chart entities
+    const entities: Entity[] = [
+      {
+        name: `${chartId}_chart`,
+        entityType: 'structural_tension_chart',
+        observations: [`Chart created on ${new Date().toISOString()}`],
+        metadata: {
+          chartId,
+          dueDate,
+          level: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          context: context || 'default'
+        }
+      },
+      {
+        name: `${chartId}_desired_outcome`,
+        entityType: 'desired_outcome', 
+        observations: [desiredOutcome],
+        metadata: {
+          chartId,
+          dueDate,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      },
+      {
+        name: `${chartId}_current_reality`,
+        entityType: 'current_reality',
+        observations: [currentReality],
+        metadata: {
+          chartId,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      }
+    ];
+
+    // Add action steps if provided
+    if (actionSteps && actionSteps.length > 0) {
+      actionSteps.forEach((step, index) => {
+        entities.push({
+          name: `${chartId}_action_${index + 1}`,
+          entityType: 'action_step',
+          observations: [step],
+          metadata: {
+            chartId,
+            dueDate,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        });
+      });
+    }
+
+    // Create relations
+    const relations: Relation[] = [
+      {
+        from: `${chartId}_current_reality`,
+        to: `${chartId}_desired_outcome`,
+        relationType: 'creates_tension_with'
+      }
+    ];
+
+    // Add action step relations
+    if (actionSteps && actionSteps.length > 0) {
+      actionSteps.forEach((_, index) => {
+        relations.push({
+          from: `${chartId}_action_${index + 1}`,
+          to: `${chartId}_desired_outcome`,
+          relationType: 'advances_toward'
+        });
+      });
+    }
+
+    // Add to graph and save
+    graph.entities.push(...entities);
+    graph.relations.push(...relations);
+    await this.saveCoaiaGraph(graph, context);
+
+    return { 
+      chartId, 
+      entities, 
+      relations,
+      context: context || 'default'
     };
+  }
+
+  async listChartsInContext(context?: string): Promise<any[]> {
+    const graph = await this.loadCoaiaGraph(context);
+    const charts = graph.entities.filter(e => e.entityType === 'structural_tension_chart');
+    
+    return charts.map(chart => {
+      const chartId = chart.metadata?.chartId;
+      if (!chartId) return null;
+
+      const desiredOutcome = graph.entities.find(e => 
+        e.name === `${chartId}_desired_outcome` && e.entityType === 'desired_outcome'
+      );
+      const currentReality = graph.entities.find(e =>
+        e.name === `${chartId}_current_reality` && e.entityType === 'current_reality'
+      );
+      const actionSteps = graph.entities.filter(e =>
+        e.entityType === 'action_step' && e.metadata?.chartId === chartId
+      );
+
+      return {
+        chartId,
+        desiredOutcome: desiredOutcome?.observations[0] || 'Unknown outcome',
+        currentReality: currentReality?.observations[0] || 'Unknown reality', 
+        actionSteps: actionSteps.length,
+        dueDate: chart.metadata?.dueDate,
+        context: context || 'default',
+        level: chart.metadata?.level || 0,
+        createdAt: chart.metadata?.createdAt,
+        updatedAt: chart.metadata?.updatedAt
+      };
+    }).filter(Boolean);
   }
 }
 
@@ -1586,14 +1752,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       // COAIA Project Organization Tools
       {
         name: "initialize_coaia_project",
-        description: `Initialize a .coaia directory structure for organized structural tension chart management in the current project.
+        description: `Initialize a .coaia directory structure for flexible structural tension chart management in the current project.
 
-Creates:
-- .coaia/active-charts.jsonl - Charts currently being worked on
-- .coaia/completed-charts.jsonl - Successfully achieved charts for learning patterns  
-- .coaia/templates/common-goals.jsonl - Reusable patterns for common desired outcomes
+Creates multiple chart contexts similar to the original AIM database approach:
+- .coaia/charts.jsonl - Master/default chart database
+- .coaia/charts-work.jsonl - Work-related structural tension charts
+- .coaia/charts-personal.jsonl - Personal goals and projects
+- .coaia/charts-learning.jsonl - Learning and skill development
+- .coaia/templates/common-goals.txt - Usage patterns and methodology guidance
 
-This is specifically designed for structural tension charts, not generic memory storage. Use this to organize your creative goal achievement process within a project.`,
+Users can create additional contexts as needed for different areas of life/work. This mirrors the flexible multi-database approach from the original AIM system but specifically for structural tension charts.`,
         inputSchema: {
           type: "object",
           properties: {},
@@ -1601,36 +1769,69 @@ This is specifically designed for structural tension charts, not generic memory 
       },
       {
         name: "list_coaia_projects",
-        description: `Show COAIA project status and chart organization.
+        description: `Show COAIA project status and all available chart contexts.
 
 Displays:
 - Current project detection (.coaia directory status)
-- Count of global vs project-local structural tension charts
-- .coaia directory structure and file locations
+- All available chart contexts (default, work, personal, learning, etc.)
+- Chart counts per context
+- Directory structure and file locations
 - Project-specific chart organization overview
 
-Helps you understand where your charts are stored and how your creative goal management is organized.`,
+Helps you understand all available contexts and how your charts are organized across different areas of life/work.`,
         inputSchema: {
           type: "object",
           properties: {},
         },
       },
       {
-        name: "move_chart_to_completed",
-        description: `Move a completed structural tension chart to the .coaia/completed-charts.jsonl archive.
+        name: "create_chart_in_context",
+        description: `Create a structural tension chart in a specific context (work, personal, health, etc.).
 
-This preserves completed charts as learning examples and keeps active workspace clean. Completed charts show successful patterns of structural tension resolution that can inform future goal achievement.
+This provides the flexible multi-context approach similar to the original AIM system. Charts can be organized by life area, project type, or any meaningful categorization.
 
-Only works within projects that have .coaia directory structure (run initialize_coaia_project first).`,
+Contexts are created automatically - just specify any descriptive name like 'work', 'personal', 'health', 'learning', 'side-projects', etc.`,
         inputSchema: {
           type: "object",
           properties: {
-            chartId: {
+            desiredOutcome: {
               type: "string",
-              description: "The chart ID of the completed structural tension chart to archive"
+              description: "What you want to CREATE (not solve or fix) - must be creative-oriented"
+            },
+            currentReality: {
+              type: "string", 
+              description: "Honest, factual assessment of where you are now (not 'ready to begin')"
+            },
+            dueDate: {
+              type: "string",
+              description: "Target completion date (ISO format: YYYY-MM-DD)"
+            },
+            context: {
+              type: "string",
+              description: "Optional context for organizing charts (e.g., 'work', 'personal', 'health', 'learning'). If not specified, uses default context."
+            },
+            actionSteps: {
+              type: "array",
+              items: { type: "string" },
+              description: "Optional strategic action steps - each becomes a telescoped chart"
             }
           },
-          required: ["chartId"]
+          required: ["desiredOutcome", "currentReality", "dueDate"]
+        },
+      },
+      {
+        name: "list_charts_in_context",
+        description: `List all structural tension charts in a specific context.
+
+Shows charts organized by context (work, personal, health, etc.) with summaries including desired outcomes, current reality, action steps count, and due dates.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            context: {
+              type: "string",
+              description: "Context to list charts from (e.g., 'work', 'personal', 'health'). If not specified, lists charts from default context."
+            }
+          }
         },
       }
     ],
@@ -1811,9 +2012,18 @@ Use format="full" for complete guidance.` }] };
     case "list_coaia_projects":
       const projectsResult = await knowledgeGraphManager.listCoaiaProjects();
       return { content: [{ type: "text", text: JSON.stringify(projectsResult, null, 2) }] };
-    case "move_chart_to_completed":
-      const moveResult = await knowledgeGraphManager.moveChartToCompleted(args.chartId as string);
-      return { content: [{ type: "text", text: JSON.stringify(moveResult, null, 2) }] };
+    case "create_chart_in_context":
+      const contextChartResult = await knowledgeGraphManager.createStructuralTensionChartInContext(
+        args.desiredOutcome as string,
+        args.currentReality as string,
+        args.dueDate as string,
+        args.context as string,
+        args.actionSteps as string[]
+      );
+      return { content: [{ type: "text", text: JSON.stringify(contextChartResult, null, 2) }] };
+    case "list_charts_in_context":
+      const contextChartsResult = await knowledgeGraphManager.listChartsInContext(args.context as string);
+      return { content: [{ type: "text", text: JSON.stringify(contextChartsResult, null, 2) }] };
 
     default:
       throw new Error(`Unknown tool: ${name}`);
