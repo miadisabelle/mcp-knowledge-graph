@@ -7,6 +7,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { promises as fs } from 'fs';
+import { existsSync } from 'fs';
 import path from 'path';
 import { LLM_GUIDANCE } from "./generated-llm-guidance.js";
 import { fileURLToPath } from 'url';
@@ -19,13 +20,20 @@ const argv = minimist(process.argv.slice(2));
 // Handle help command
 if (argv.help || argv.h) {
   console.log(`
-🧠 COAIA Memory - Creative-Oriented AI Assistant Memory System v2.1.0
+🧠 COAIA Memory - Creative-Oriented AI Assistant Memory System v2.3.0
    Based on Robert Fritz's Structural Tension methodology
+   Integrated with AIM (AI Memory) functionality from Shane Holloman's original work
 
 DESCRIPTION:
    MCP server that extends knowledge graphs with structural tension charts for 
    creative-oriented memory management. Supports advancing patterns, telescoping
    charts, and natural language interaction for AI assistants.
+   
+   AIM Integration provides:
+   • .aim directory detection for project-local memory
+   • Multiple database contexts (work, personal, health, etc.)
+   • Safety markers to prevent data corruption
+   • Global vs project storage management
 
 USAGE:
    coaia-memory [OPTIONS]
@@ -143,9 +151,88 @@ if (memoryPath && !isAbsolute(memoryPath)) {
     memoryPath = path.resolve(process.cwd(), memoryPath);
 }
 
-// Define the path to the JSONL file
+// Define the base directory for memory files
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// Use the custom path or default to the installation directory
+
+// Handle memory path - could be a file or directory
+let baseMemoryPath: string;
+if (memoryPath) {
+  // If memory-path points to a .jsonl file, use its directory as the base
+  if (memoryPath.endsWith('.jsonl')) {
+    baseMemoryPath = path.dirname(memoryPath);
+  } else {
+    // Otherwise treat it as a directory
+    baseMemoryPath = memoryPath;
+  }
+} else {
+  baseMemoryPath = __dirname;
+}
+
+// AIM safety marker to identify our files - prevents writing to unrelated JSONL files
+const FILE_MARKER = {
+  type: "_aim",
+  source: "mcp-knowledge-graph"
+};
+
+// Project detection - look for common project markers
+function findProjectRoot(startDir: string = process.cwd()): string | null {
+  const projectMarkers = ['.git', 'package.json', 'pyproject.toml', 'Cargo.toml', 'go.mod'];
+  let currentDir = startDir;
+  const maxDepth = 5;
+
+  for (let i = 0; i < maxDepth; i++) {
+    // Check for project markers
+    for (const marker of projectMarkers) {
+      if (existsSync(path.join(currentDir, marker))) {
+        return currentDir;
+      }
+    }
+
+    // Move up one directory
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) {
+      // Reached root directory
+      break;
+    }
+    currentDir = parentDir;
+  }
+
+  return null;
+}
+
+// Function to get memory file path based on context and optional location override
+function getMemoryFilePath(context?: string, location?: 'project' | 'global'): string {
+  const filename = context ? `memory-${context}.jsonl` : 'memory.jsonl';
+  
+  // If location is explicitly specified, use it
+  if (location === 'global') {
+    return path.join(baseMemoryPath, filename);
+  }
+  
+  if (location === 'project') {
+    const projectRoot = findProjectRoot();
+    if (projectRoot) {
+      const aimDir = path.join(projectRoot, '.aim');
+      return path.join(aimDir, filename); // Will create .aim if it doesn't exist
+    } else {
+      throw new Error('No project detected - cannot use project location');
+    }
+  }
+  
+  // Auto-detect logic (existing behavior)
+  const projectRoot = findProjectRoot();
+  if (projectRoot) {
+    const aimDir = path.join(projectRoot, '.aim');
+    if (existsSync(aimDir)) {
+      return path.join(aimDir, filename);
+    }
+  }
+  
+  // Fallback to configured base directory
+  return path.join(baseMemoryPath, filename);
+}
+
+// Use the custom path or default to the installation directory - maintain backward compatibility
 const MEMORY_FILE_PATH = memoryPath || path.join(__dirname, 'memory.jsonl');
 
 // We are storing our memory using entities, relations, and observations in a graph structure
@@ -184,7 +271,42 @@ interface KnowledgeGraph {
 
 // The KnowledgeGraphManager class contains all operations to interact with the knowledge graph
 class KnowledgeGraphManager {
-  private async loadGraph(): Promise<KnowledgeGraph> {
+  // AIM-compatible loadGraph method with context and location support
+  private async loadGraph(context?: string, location?: 'project' | 'global'): Promise<KnowledgeGraph> {
+    const filePath = getMemoryFilePath(context, location);
+    
+    try {
+      const data = await fs.readFile(filePath, "utf-8");
+      const lines = data.split("\n").filter(line => line.trim() !== "");
+      
+      if (lines.length === 0) {
+        return { entities: [], relations: [] };
+      }
+      
+      // Check first line for AIM safety marker
+      const firstLine = JSON.parse(lines[0]!);
+      if (firstLine.type !== "_aim" || firstLine.source !== "mcp-knowledge-graph") {
+        throw new Error(`File ${filePath} does not contain required _aim safety marker. This file may not belong to the knowledge graph system. Expected first line: {"type":"_aim","source":"mcp-knowledge-graph"}`);
+      }
+      
+      // Process remaining lines (skip metadata)
+      return lines.slice(1).reduce((graph: KnowledgeGraph, line) => {
+        const item = JSON.parse(line);
+        if (item.type === "entity") graph.entities.push(item as Entity);
+        if (item.type === "relation") graph.relations.push(item as Relation);
+        return graph;
+      }, { entities: [], relations: [] });
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && (error as any).code === "ENOENT") {
+        // File doesn't exist - we'll create it with metadata on first save
+        return { entities: [], relations: [] };
+      }
+      throw error;
+    }
+  }
+
+  // Legacy loadGraph method for backward compatibility with existing COAIA functionality
+  private async loadGraphLegacy(): Promise<KnowledgeGraph> {
     try {
       const data = await fs.readFile(MEMORY_FILE_PATH, "utf-8");
       const lines = data.split("\n").filter(line => line.trim() !== "");
@@ -224,7 +346,25 @@ class KnowledgeGraphManager {
     return null;
   }
 
-  private async saveGraph(graph: KnowledgeGraph): Promise<void> {
+  // AIM-compatible saveGraph method with context and location support
+  private async saveGraph(graph: KnowledgeGraph, context?: string, location?: 'project' | 'global'): Promise<void> {
+    const filePath = getMemoryFilePath(context, location);
+    
+    // Write AIM safety marker first
+    const lines = [
+      JSON.stringify(FILE_MARKER),
+      ...graph.entities.map(e => JSON.stringify({ type: "entity", ...e })),
+      ...graph.relations.map(r => JSON.stringify({ type: "relation", ...r })),
+    ];
+    
+    // Ensure directory exists
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    
+    await fs.writeFile(filePath, lines.join("\n"));
+  }
+
+  // Legacy saveGraph method for backward compatibility
+  private async saveGraphLegacy(graph: KnowledgeGraph): Promise<void> {
     const lines = [
       ...graph.entities.map(e => JSON.stringify({ type: "entity", ...e })),
       ...graph.relations.map(r => JSON.stringify({ type: "relation", ...r })),
@@ -232,28 +372,29 @@ class KnowledgeGraphManager {
     await fs.writeFile(MEMORY_FILE_PATH, lines.join("\n"));
   }
 
+  // Legacy methods for backward compatibility with existing COAIA functionality
   async createEntities(entities: Entity[]): Promise<Entity[]> {
-    const graph = await this.loadGraph();
+    const graph = await this.loadGraphLegacy();
     const newEntities = entities.filter(e => !graph.entities.some(existingEntity => existingEntity.name === e.name));
     graph.entities.push(...newEntities);
-    await this.saveGraph(graph);
+    await this.saveGraphLegacy(graph);
     return newEntities;
   }
 
   async createRelations(relations: Relation[]): Promise<Relation[]> {
-    const graph = await this.loadGraph();
+    const graph = await this.loadGraphLegacy();
     const newRelations = relations.filter(r => !graph.relations.some(existingRelation =>
       existingRelation.from === r.from &&
       existingRelation.to === r.to &&
       existingRelation.relationType === r.relationType
     ));
     graph.relations.push(...newRelations);
-    await this.saveGraph(graph);
+    await this.saveGraphLegacy(graph);
     return newRelations;
   }
 
   async addObservations(observations: { entityName: string; contents: string[] }[]): Promise<{ entityName: string; addedObservations: string[] }[]> {
-    const graph = await this.loadGraph();
+    const graph = await this.loadGraphLegacy();
     const results = observations.map(o => {
       const entity = graph.entities.find(e => e.name === o.entityName);
       if (!entity) {
@@ -263,45 +404,45 @@ class KnowledgeGraphManager {
       entity.observations.push(...newObservations);
       return { entityName: o.entityName, addedObservations: newObservations };
     });
-    await this.saveGraph(graph);
+    await this.saveGraphLegacy(graph);
     return results;
   }
 
   async deleteEntities(entityNames: string[]): Promise<void> {
-    const graph = await this.loadGraph();
+    const graph = await this.loadGraphLegacy();
     graph.entities = graph.entities.filter(e => !entityNames.includes(e.name));
     graph.relations = graph.relations.filter(r => !entityNames.includes(r.from) && !entityNames.includes(r.to));
-    await this.saveGraph(graph);
+    await this.saveGraphLegacy(graph);
   }
 
   async deleteObservations(deletions: { entityName: string; observations: string[] }[]): Promise<void> {
-    const graph = await this.loadGraph();
+    const graph = await this.loadGraphLegacy();
     deletions.forEach(d => {
       const entity = graph.entities.find(e => e.name === d.entityName);
       if (entity) {
         entity.observations = entity.observations.filter(o => !d.observations.includes(o));
       }
     });
-    await this.saveGraph(graph);
+    await this.saveGraphLegacy(graph);
   }
 
   async deleteRelations(relations: Relation[]): Promise<void> {
-    const graph = await this.loadGraph();
+    const graph = await this.loadGraphLegacy();
     graph.relations = graph.relations.filter(r => !relations.some(delRelation =>
       r.from === delRelation.from &&
       r.to === delRelation.to &&
       r.relationType === delRelation.relationType
     ));
-    await this.saveGraph(graph);
+    await this.saveGraphLegacy(graph);
   }
 
   async readGraph(): Promise<KnowledgeGraph> {
-    return this.loadGraph();
+    return this.loadGraphLegacy();
   }
 
   // Very basic search function
   async searchNodes(query: string): Promise<KnowledgeGraph> {
-    const graph = await this.loadGraph();
+    const graph = await this.loadGraphLegacy();
 
     // Filter entities
     const filteredEntities = graph.entities.filter(e =>
@@ -327,7 +468,7 @@ class KnowledgeGraphManager {
   }
 
   async openNodes(names: string[]): Promise<KnowledgeGraph> {
-    const graph = await this.loadGraph();
+    const graph = await this.loadGraphLegacy();
 
     // Filter entities
     const filteredEntities = graph.entities.filter(e => names.includes(e.name));
@@ -346,6 +487,166 @@ class KnowledgeGraphManager {
     };
 
     return filteredGraph;
+  }
+
+  // AIM-compatible methods with context and location support
+  async aimCreateEntities(entities: Entity[], context?: string, location?: 'project' | 'global'): Promise<Entity[]> {
+    const graph = await this.loadGraph(context, location);
+    const newEntities = entities.filter(e => !graph.entities.some(existingEntity => existingEntity.name === e.name));
+    graph.entities.push(...newEntities);
+    await this.saveGraph(graph, context, location);
+    return newEntities;
+  }
+
+  async aimCreateRelations(relations: Relation[], context?: string, location?: 'project' | 'global'): Promise<Relation[]> {
+    const graph = await this.loadGraph(context, location);
+    const newRelations = relations.filter(r => !graph.relations.some(existingRelation =>
+      existingRelation.from === r.from &&
+      existingRelation.to === r.to &&
+      existingRelation.relationType === r.relationType
+    ));
+    graph.relations.push(...newRelations);
+    await this.saveGraph(graph, context, location);
+    return newRelations;
+  }
+
+  async aimAddObservations(observations: { entityName: string; contents: string[] }[], context?: string, location?: 'project' | 'global'): Promise<{ entityName: string; addedObservations: string[] }[]> {
+    const graph = await this.loadGraph(context, location);
+    const results = observations.map(o => {
+      const entity = graph.entities.find(e => e.name === o.entityName);
+      if (!entity) {
+        throw new Error(`Entity with name ${o.entityName} not found`);
+      }
+      const newObservations = o.contents.filter(content => !entity.observations.includes(content));
+      entity.observations.push(...newObservations);
+      return { entityName: o.entityName, addedObservations: newObservations };
+    });
+    await this.saveGraph(graph, context, location);
+    return results;
+  }
+
+  async aimDeleteEntities(entityNames: string[], context?: string, location?: 'project' | 'global'): Promise<void> {
+    const graph = await this.loadGraph(context, location);
+    graph.entities = graph.entities.filter(e => !entityNames.includes(e.name));
+    graph.relations = graph.relations.filter(r => !entityNames.includes(r.from) && !entityNames.includes(r.to));
+    await this.saveGraph(graph, context, location);
+  }
+
+  async aimDeleteObservations(deletions: { entityName: string; observations: string[] }[], context?: string, location?: 'project' | 'global'): Promise<void> {
+    const graph = await this.loadGraph(context, location);
+    deletions.forEach(d => {
+      const entity = graph.entities.find(e => e.name === d.entityName);
+      if (entity) {
+        entity.observations = entity.observations.filter(o => !d.observations.includes(o));
+      }
+    });
+    await this.saveGraph(graph, context, location);
+  }
+
+  async aimDeleteRelations(relations: Relation[], context?: string, location?: 'project' | 'global'): Promise<void> {
+    const graph = await this.loadGraph(context, location);
+    graph.relations = graph.relations.filter(r => !relations.some(delRelation =>
+      r.from === delRelation.from &&
+      r.to === delRelation.to &&
+      r.relationType === delRelation.relationType
+    ));
+    await this.saveGraph(graph, context, location);
+  }
+
+  async aimReadGraph(context?: string, location?: 'project' | 'global'): Promise<KnowledgeGraph> {
+    return this.loadGraph(context, location);
+  }
+
+  async aimSearchNodes(query: string, context?: string, location?: 'project' | 'global'): Promise<KnowledgeGraph> {
+    const graph = await this.loadGraph(context, location);
+
+    // Filter entities
+    const filteredEntities = graph.entities.filter(e =>
+      e.name.toLowerCase().includes(query.toLowerCase()) ||
+      e.entityType.toLowerCase().includes(query.toLowerCase()) ||
+      e.observations.some(o => o.toLowerCase().includes(query.toLowerCase()))
+    );
+
+    // Create a Set of filtered entity names for quick lookup
+    const filteredEntityNames = new Set(filteredEntities.map(e => e.name));
+
+    // Filter relations to only include those between filtered entities
+    const filteredRelations = graph.relations.filter(r =>
+      filteredEntityNames.has(r.from) && filteredEntityNames.has(r.to)
+    );
+
+    const filteredGraph: KnowledgeGraph = {
+      entities: filteredEntities,
+      relations: filteredRelations,
+    };
+
+    return filteredGraph;
+  }
+
+  async aimOpenNodes(names: string[], context?: string, location?: 'project' | 'global'): Promise<KnowledgeGraph> {
+    const graph = await this.loadGraph(context, location);
+
+    // Filter entities
+    const filteredEntities = graph.entities.filter(e => names.includes(e.name));
+
+    // Create a Set of filtered entity names for quick lookup
+    const filteredEntityNames = new Set(filteredEntities.map(e => e.name));
+
+    // Filter relations to only include those between filtered entities
+    const filteredRelations = graph.relations.filter(r =>
+      filteredEntityNames.has(r.from) && filteredEntityNames.has(r.to)
+    );
+
+    const filteredGraph: KnowledgeGraph = {
+      entities: filteredEntities,
+      relations: filteredRelations,
+    };
+
+    return filteredGraph;
+  }
+
+  async aimListDatabases(): Promise<{ project_databases: string[], global_databases: string[], current_location: string }> {
+    const result = {
+      project_databases: [] as string[],
+      global_databases: [] as string[],
+      current_location: ""
+    };
+
+    // Check project-local .aim directory
+    const projectRoot = findProjectRoot();
+    if (projectRoot) {
+      const aimDir = path.join(projectRoot, '.aim');
+      if (existsSync(aimDir)) {
+        result.current_location = "project (.aim directory detected)";
+        try {
+          const files = await fs.readdir(aimDir);
+          result.project_databases = files
+            .filter(file => file.endsWith('.jsonl'))
+            .map(file => file === 'memory.jsonl' ? 'default' : file.replace('memory-', '').replace('.jsonl', ''))
+            .sort();
+        } catch (error) {
+          // Directory exists but can't read - ignore
+        }
+      } else {
+        result.current_location = "global (no .aim directory in project)";
+      }
+    } else {
+      result.current_location = "global (no project detected)";
+    }
+
+    // Check global directory
+    try {
+      const files = await fs.readdir(baseMemoryPath);
+      result.global_databases = files
+        .filter(file => file.endsWith('.jsonl'))
+        .map(file => file === 'memory.jsonl' ? 'default' : file.replace('memory-', '').replace('.jsonl', ''))
+        .sort();
+    } catch (error) {
+      // Directory doesn't exist or can't read
+      result.global_databases = [];
+    }
+
+    return result;
   }
 
   // COAIA-specific methods for structural tension charts and creative processes
@@ -1324,6 +1625,318 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             }
           }
         }
+      },
+
+      // AIM (AI Memory) Tools - Extracted from Shane Holloman's original mcp-knowledge-graph
+      {
+        name: "aim_create_entities",
+        description: `Create multiple new entities in the knowledge graph with AIM (AI Memory) functionality.
+
+DATABASE SELECTION: By default, all memories are stored in the master database. Use the 'context' parameter to organize information into separate knowledge graphs for different areas of life or work.
+
+STORAGE LOCATION: Files are stored in the user's configured directory, or project-local .aim directory if one exists. Each database creates its own file (e.g., memory-work.jsonl, memory-personal.jsonl).
+
+LOCATION OVERRIDE: Use the 'location' parameter to force storage in a specific location:
+- 'project': Always use project-local .aim directory (creates if needed)
+- 'global': Always use global configured directory
+- Leave blank: Auto-detect (project if .aim exists, otherwise global)
+
+WHEN TO USE DATABASES:
+- Any descriptive name: 'work', 'personal', 'health', 'research', 'basket-weaving', 'book-club', etc.
+- New databases are created automatically - no setup required
+- IMPORTANT: Use consistent, simple names - prefer 'work' over 'work-stuff' or 'job-related'
+- Common examples: 'work' (professional), 'personal' (private), 'health' (medical), 'research' (academic)  
+- Leave blank: General information or when unsure (uses master database)`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            context: {
+              type: "string",
+              description: "Optional memory context. Defaults to master database if not specified. Use any descriptive name ('work', 'personal', 'health', 'basket-weaving', etc.) - new contexts created automatically."
+            },
+            location: {
+              type: "string",
+              enum: ["project", "global"],
+              description: "Optional storage location override. 'project' forces project-local .aim directory, 'global' forces global directory. If not specified, uses automatic detection."
+            },
+            entities: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  name: { type: "string", description: "The name of the entity" },
+                  entityType: { type: "string", description: "The type of the entity" },
+                  observations: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "An array of observation contents associated with the entity"
+                  },
+                },
+                required: ["name", "entityType", "observations"],
+              },
+            },
+          },
+          required: ["entities"],
+        },
+      },
+      {
+        name: "aim_create_relations",
+        description: `Create multiple new relations between entities in the knowledge graph with AIM functionality. Relations should be in active voice.
+
+DATABASE SELECTION: Relations are created within the specified database's knowledge graph. Entities must exist in the same database.
+
+LOCATION OVERRIDE: Use the 'location' parameter to force storage in 'project' (.aim directory) or 'global' (configured directory). Leave blank for auto-detection.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            context: {
+              type: "string",
+              description: "Optional memory context. Relations will be created in the specified context's knowledge graph."
+            },
+            location: {
+              type: "string",
+              enum: ["project", "global"],
+              description: "Optional storage location override. 'project' forces project-local .aim directory, 'global' forces global directory. If not specified, uses automatic detection."
+            },
+            relations: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  from: { type: "string", description: "The name of the entity where the relation starts" },
+                  to: { type: "string", description: "The name of the entity where the relation ends" },
+                  relationType: { type: "string", description: "The type of the relation" },
+                },
+                required: ["from", "to", "relationType"],
+              },
+            },
+          },
+          required: ["relations"],
+        },
+      },
+      {
+        name: "aim_add_observations",
+        description: `Add new observations to existing entities in the knowledge graph with AIM functionality.
+
+DATABASE SELECTION: Observations are added to entities within the specified database's knowledge graph.
+
+LOCATION OVERRIDE: Use the 'location' parameter to force storage in 'project' (.aim directory) or 'global' (configured directory). Leave blank for auto-detection.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            context: {
+              type: "string",
+              description: "Optional memory context. Observations will be added to entities in the specified context's knowledge graph."
+            },
+            location: {
+              type: "string",
+              enum: ["project", "global"],
+              description: "Optional storage location override. 'project' forces project-local .aim directory, 'global' forces global directory. If not specified, uses automatic detection."
+            },
+            observations: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  entityName: { type: "string", description: "The name of the entity to add the observations to" },
+                  contents: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "An array of observation contents to add"
+                  },
+                },
+                required: ["entityName", "contents"],
+              },
+            },
+          },
+          required: ["observations"],
+        },
+      },
+      {
+        name: "aim_delete_entities",
+        description: `Delete multiple entities and their associated relations from the knowledge graph with AIM functionality.
+
+DATABASE SELECTION: Entities are deleted from the specified database's knowledge graph.
+
+LOCATION OVERRIDE: Use the 'location' parameter to force deletion from 'project' (.aim directory) or 'global' (configured directory). Leave blank for auto-detection.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            context: {
+              type: "string",
+              description: "Optional memory context. Entities will be deleted from the specified context's knowledge graph."
+            },
+            location: {
+              type: "string",
+              enum: ["project", "global"],
+              description: "Optional storage location override. 'project' forces project-local .aim directory, 'global' forces global directory. If not specified, uses automatic detection."
+            },
+            entityNames: {
+              type: "array",
+              items: { type: "string" },
+              description: "An array of entity names to delete"
+            },
+          },
+          required: ["entityNames"],
+        },
+      },
+      {
+        name: "aim_delete_observations",
+        description: `Delete specific observations from entities in the knowledge graph with AIM functionality.
+
+DATABASE SELECTION: Observations are deleted from entities within the specified database's knowledge graph.
+
+LOCATION OVERRIDE: Use the 'location' parameter to force deletion from 'project' (.aim directory) or 'global' (configured directory). Leave blank for auto-detection.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            context: {
+              type: "string",
+              description: "Optional memory context. Observations will be deleted from entities in the specified context's knowledge graph."
+            },
+            location: {
+              type: "string",
+              enum: ["project", "global"],
+              description: "Optional storage location override. 'project' forces project-local .aim directory, 'global' forces global directory. If not specified, uses automatic detection."
+            },
+            deletions: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  entityName: { type: "string", description: "The name of the entity containing the observations" },
+                  observations: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "An array of observations to delete"
+                  },
+                },
+                required: ["entityName", "observations"],
+              },
+            },
+          },
+          required: ["deletions"],
+        },
+      },
+      {
+        name: "aim_delete_relations",
+        description: `Delete multiple relations from the knowledge graph with AIM functionality.
+
+DATABASE SELECTION: Relations are deleted from the specified database's knowledge graph.
+
+LOCATION OVERRIDE: Use the 'location' parameter to force deletion from 'project' (.aim directory) or 'global' (configured directory). Leave blank for auto-detection.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            context: {
+              type: "string",
+              description: "Optional memory context. Relations will be deleted from the specified context's knowledge graph."
+            },
+            location: {
+              type: "string",
+              enum: ["project", "global"],
+              description: "Optional storage location override. 'project' forces project-local .aim directory, 'global' forces global directory. If not specified, uses automatic detection."
+            },
+            relations: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  from: { type: "string", description: "The name of the entity where the relation starts" },
+                  to: { type: "string", description: "The name of the entity where the relation ends" },
+                  relationType: { type: "string", description: "The type of the relation" },
+                },
+                required: ["from", "to", "relationType"],
+              },
+              description: "An array of relations to delete"
+            },
+          },
+          required: ["relations"],
+        },
+      },
+      {
+        name: "aim_read_graph",
+        description: `Read the entire knowledge graph with AIM functionality.
+
+DATABASE SELECTION: Reads from the specified database or master database if no database is specified.
+
+LOCATION OVERRIDE: Use the 'location' parameter to force reading from 'project' (.aim directory) or 'global' (configured directory). Leave blank for auto-detection.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            context: {
+              type: "string",
+              description: "Optional memory context. Reads from the specified context's knowledge graph or master database if not specified."
+            },
+            location: {
+              type: "string",
+              enum: ["project", "global"],
+              description: "Optional storage location override. 'project' forces project-local .aim directory, 'global' forces global directory. If not specified, uses automatic detection."
+            }
+          },
+        },
+      },
+      {
+        name: "aim_search_nodes",
+        description: `Search for nodes in the knowledge graph based on a query with AIM functionality.
+
+DATABASE SELECTION: Searches within the specified database or master database if no database is specified.
+
+LOCATION OVERRIDE: Use the 'location' parameter to force searching in 'project' (.aim directory) or 'global' (configured directory). Leave blank for auto-detection.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            context: {
+              type: "string",
+              description: "Optional memory context. Searches within the specified context's knowledge graph or master database if not specified."
+            },
+            location: {
+              type: "string",
+              enum: ["project", "global"],
+              description: "Optional storage location override. 'project' forces project-local .aim directory, 'global' forces global directory. If not specified, uses automatic detection."
+            },
+            query: { type: "string", description: "The search query to match against entity names, types, and observation content" },
+          },
+          required: ["query"],
+        },
+      },
+      {
+        name: "aim_open_nodes",
+        description: `Open specific nodes in the knowledge graph by their names with AIM functionality.
+
+DATABASE SELECTION: Retrieves entities from the specified database or master database if no database is specified.
+
+LOCATION OVERRIDE: Use the 'location' parameter to force retrieval from 'project' (.aim directory) or 'global' (configured directory). Leave blank for auto-detection.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            context: {
+              type: "string",
+              description: "Optional memory context. Retrieves entities from the specified context's knowledge graph or master database if not specified."
+            },
+            location: {
+              type: "string",
+              enum: ["project", "global"],
+              description: "Optional storage location override. 'project' forces project-local .aim directory, 'global' forces global directory. If not specified, uses automatic detection."
+            },
+            names: {
+              type: "array",
+              items: { type: "string" },
+              description: "An array of entity names to retrieve",
+            },
+          },
+          required: ["names"],
+        },
+      },
+      {
+        name: "aim_list_databases",
+        description: `List all available memory databases in both project and global locations with AIM functionality.
+
+DISCOVERY: Shows which databases exist, where they're stored, and which location is currently active.`,
+        inputSchema: {
+          type: "object",
+          properties: {},
+        },
       }
     ],
   };
@@ -1495,6 +2108,32 @@ Use format="full" for complete guidance.` }] };
       
       // Default: full guidance
       return { content: [{ type: "text", text: LLM_GUIDANCE }] };
+
+    // AIM (AI Memory) Tool Handlers
+    case "aim_create_entities":
+      return { content: [{ type: "text", text: JSON.stringify(await knowledgeGraphManager.aimCreateEntities(args.entities as Entity[], args.context as string, args.location as 'project' | 'global'), null, 2) }] };
+    case "aim_create_relations":
+      return { content: [{ type: "text", text: JSON.stringify(await knowledgeGraphManager.aimCreateRelations(args.relations as Relation[], args.context as string, args.location as 'project' | 'global'), null, 2) }] };
+    case "aim_add_observations":
+      return { content: [{ type: "text", text: JSON.stringify(await knowledgeGraphManager.aimAddObservations(args.observations as { entityName: string; contents: string[] }[], args.context as string, args.location as 'project' | 'global'), null, 2) }] };
+    case "aim_delete_entities":
+      await knowledgeGraphManager.aimDeleteEntities(args.entityNames as string[], args.context as string, args.location as 'project' | 'global');
+      return { content: [{ type: "text", text: "Entities deleted successfully" }] };
+    case "aim_delete_observations":
+      await knowledgeGraphManager.aimDeleteObservations(args.deletions as { entityName: string; observations: string[] }[], args.context as string, args.location as 'project' | 'global');
+      return { content: [{ type: "text", text: "Observations deleted successfully" }] };
+    case "aim_delete_relations":
+      await knowledgeGraphManager.aimDeleteRelations(args.relations as Relation[], args.context as string, args.location as 'project' | 'global');
+      return { content: [{ type: "text", text: "Relations deleted successfully" }] };
+    case "aim_read_graph":
+      return { content: [{ type: "text", text: JSON.stringify(await knowledgeGraphManager.aimReadGraph(args.context as string, args.location as 'project' | 'global'), null, 2) }] };
+    case "aim_search_nodes":
+      return { content: [{ type: "text", text: JSON.stringify(await knowledgeGraphManager.aimSearchNodes(args.query as string, args.context as string, args.location as 'project' | 'global'), null, 2) }] };
+    case "aim_open_nodes":
+      return { content: [{ type: "text", text: JSON.stringify(await knowledgeGraphManager.aimOpenNodes(args.names as string[], args.context as string, args.location as 'project' | 'global'), null, 2) }] };
+    case "aim_list_databases":
+      return { content: [{ type: "text", text: JSON.stringify(await knowledgeGraphManager.aimListDatabases(), null, 2) }] };
+
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
