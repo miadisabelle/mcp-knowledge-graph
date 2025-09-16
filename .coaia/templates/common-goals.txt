@@ -1,0 +1,28 @@
+# COAIA Memory - Structural Tension Chart Templates
+# These are common patterns for structural tension charts
+# Copy and customize for your specific desired outcomes
+
+## Learning/Skill Development Template:
+# Desired Outcome: "Master [specific skill] for [specific context]"
+# Current Reality: "Currently know [current level] in [skill area]"  
+# Action Steps: ["Complete foundational course", "Practice with real project", "Get feedback from expert"]
+
+## Project Creation Template:
+# Desired Outcome: "Launch [specific deliverable] that [specific value]"
+# Current Reality: "Have [current resources/progress] and [current constraints]"
+# Action Steps: ["Define requirements and scope", "Build MVP/prototype", "Test with target users", "Refine and launch"]
+
+## Relationship/Communication Template:
+# Desired Outcome: "Establish [specific relationship outcome]"
+# Current Reality: "Current relationship dynamic is [honest assessment]"
+# Action Steps: ["Have initial conversation about goals", "Implement new communication pattern", "Regular check-ins and adjustments"]
+
+## Creative Project Template:
+# Desired Outcome: "Create [specific creative output] that expresses [specific vision]"
+# Current Reality: "Have initial concept/inspiration, current skill level is [honest assessment]"
+# Action Steps: ["Research and gather inspiration", "Create initial drafts/sketches", "Iterate and refine", "Share and gather feedback"]
+
+## Health/Wellness Template:
+# Desired Outcome: "Achieve [specific health outcome] for [specific benefit]"
+# Current Reality: "Current habits are [honest assessment], current state is [factual description]"
+# Action Steps: ["Design sustainable daily routine", "Track progress and adjust", "Build support systems", "Maintain long-term consistency"]
