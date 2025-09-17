@@ -312,6 +312,21 @@ class KnowledgeGraphManager {
     return null;
   }
 
+  // Helper method to determine if we should use COAIA context-aware persistence
+  private shouldUseCoaiaPersistence(): boolean {
+    const projectRoot = findProjectRoot();
+    return projectRoot !== null && existsSync(path.join(projectRoot, '.coaia'));
+  }
+
+  // Helper method to save graph using appropriate persistence method
+  private async saveGraphAppropriate(graph: KnowledgeGraph, context?: string): Promise<void> {
+    if (this.shouldUseCoaiaPersistence()) {
+      await this.saveCoaiaGraph(graph, context);
+    } else {
+      await this.saveGraph(graph);
+    }
+  }
+
   // COAIA context-aware methods (similar to AIM approach but for structural tension charts)
   private async loadCoaiaGraph(context?: string): Promise<KnowledgeGraph> {
     const filePath = getCoaiaStoragePath(context);
@@ -354,22 +369,22 @@ class KnowledgeGraphManager {
   }
 
   async createEntities(entities: Entity[]): Promise<Entity[]> {
-    const graph = await this.loadGraph();
+    const graph = this.shouldUseCoaiaPersistence() ? await this.loadCoaiaGraph() : await this.loadGraph();
     const newEntities = entities.filter(e => !graph.entities.some(existingEntity => existingEntity.name === e.name));
     graph.entities.push(...newEntities);
-    await this.saveGraph(graph);
+    await this.saveGraphAppropriate(graph);
     return newEntities;
   }
 
   async createRelations(relations: Relation[]): Promise<Relation[]> {
-    const graph = await this.loadGraph();
+    const graph = this.shouldUseCoaiaPersistence() ? await this.loadCoaiaGraph() : await this.loadGraph();
     const newRelations = relations.filter(r => !graph.relations.some(existingRelation =>
       existingRelation.from === r.from &&
       existingRelation.to === r.to &&
       existingRelation.relationType === r.relationType
     ));
     graph.relations.push(...newRelations);
-    await this.saveGraph(graph);
+    await this.saveGraphAppropriate(graph);
     return newRelations;
   }
 
@@ -649,7 +664,7 @@ Current Reality: "${currentReality}"
     newCurrentReality: string,
     initialActionSteps?: string[]
   ): Promise<{ chartId: string; parentChart: string }> {
-    const graph = await this.loadGraph();
+    const graph = this.shouldUseCoaiaPersistence() ? await this.loadCoaiaGraph() : await this.loadGraph();
     const actionStep = graph.entities.find(e => e.name === actionStepName && e.entityType === 'action_step');
     
     if (!actionStep || !actionStep.metadata?.chartId) {
@@ -668,7 +683,7 @@ Current Reality: "${currentReality}"
     );
 
     // Update the new chart's metadata to reflect telescoping relationship
-    const newChart = await this.loadGraph();
+    const newChart = this.shouldUseCoaiaPersistence() ? await this.loadCoaiaGraph() : await this.loadGraph();
     const chartEntity = newChart.entities.find(e => e.name === `${result.chartId}_chart`);
     if (chartEntity && chartEntity.metadata) {
       chartEntity.metadata.parentChart = parentChartId;
@@ -677,13 +692,13 @@ Current Reality: "${currentReality}"
       chartEntity.metadata.updatedAt = new Date().toISOString();
     }
 
-    await this.saveGraph(newChart);
+    await this.saveGraphAppropriate(newChart);
 
     return { chartId: result.chartId, parentChart: parentChartId };
   }
 
   async markActionStepComplete(actionStepName: string): Promise<void> {
-    const graph = await this.loadGraph();
+    const graph = this.shouldUseCoaiaPersistence() ? await this.loadCoaiaGraph() : await this.loadGraph();
     // An "action step" can be a 'desired_outcome' of a sub-chart, or a simple 'action_step' entity.
     const actionStep = graph.entities.find(e => e.name === actionStepName && (e.entityType === 'action_step' || e.entityType === 'desired_outcome'));
 
@@ -729,7 +744,7 @@ Current Reality: "${currentReality}"
       }
     }
 
-    await this.saveGraph(graph);
+    await this.saveGraphAppropriate(graph);
   }
 
   async getChartProgress(chartId: string): Promise<{
