@@ -208,20 +208,20 @@ function findProjectRoot(startDir: string = process.cwd()): string | null {
 }
 
 // COAIA-specific storage management for structural tension charts with flexible contexts
+// Priority: 1) Configured --memory-path, 2) Project .coaia directory, 3) Default
 function getCoaiaStoragePath(context?: string): string {
   const filename = context ? `charts-${context}.jsonl` : 'charts.jsonl';
-  const projectRoot = findProjectRoot();
   
-  if (projectRoot) {
-    const coaiaDir = path.join(projectRoot, '.coaia');
-    if (existsSync(coaiaDir)) {
-      return path.join(coaiaDir, filename);
-    }
-  }
-  
-  // Fallback to configured path or default
+  // FIRST PRIORITY: Use configured --memory-path (AIM philosophy)
   if (memoryPath) {
-    if (context && memoryPath.endsWith('.jsonl')) {
+    // If memoryPath points to a directory, use it as base for chart files
+    if (memoryPath.endsWith('/') || !memoryPath.endsWith('.jsonl')) {
+      const dir = memoryPath.endsWith('/') ? memoryPath : memoryPath + '/';
+      return path.join(dir, filename);
+    }
+    
+    // If memoryPath is a specific file, use it for default context or create contextual version
+    if (context) {
       const dir = path.dirname(memoryPath);
       const name = path.basename(memoryPath, '.jsonl');
       return path.join(dir, `${name}-${context}.jsonl`);
@@ -229,6 +229,16 @@ function getCoaiaStoragePath(context?: string): string {
     return memoryPath;
   }
   
+  // SECOND PRIORITY: Check for project .coaia directory
+  const projectRoot = findProjectRoot();
+  if (projectRoot) {
+    const coaiaDir = path.join(projectRoot, '.coaia');
+    if (existsSync(coaiaDir)) {
+      return path.join(coaiaDir, filename);
+    }
+  }
+  
+  // THIRD PRIORITY: Default fallback
   return path.join(__dirname, 'memory.jsonl');
 }
 
@@ -314,6 +324,12 @@ class KnowledgeGraphManager {
 
   // Helper method to determine if we should use COAIA context-aware persistence
   private shouldUseCoaiaPersistence(): boolean {
+    // If --memory-path is configured, always use COAIA persistence for context support
+    if (memoryPath) {
+      return true;
+    }
+    
+    // Otherwise, check for project .coaia directory
     const projectRoot = findProjectRoot();
     return projectRoot !== null && existsSync(path.join(projectRoot, '.coaia'));
   }
@@ -1105,14 +1121,22 @@ Action step: "${actionStepTitle}"
   // COAIA Project Organization - Enhanced chart management for .coaia directories
   
   async initializeCoaiaProject(): Promise<{ message: string; structure: any }> {
-    const projectRoot = findProjectRoot();
-    if (!projectRoot) {
-      throw new Error('No project detected. Run this from within a project directory (must contain .git, package.json, etc.)');
-    }
-
-    const coaiaDir = path.join(projectRoot, '.coaia');
+    // Determine the target directory based on configuration priority (same as getCoaiaStoragePath)
+    let coaiaDir: string;
     
-    // Create .coaia directory structure
+    if (memoryPath) {
+      // If --memory-path is configured, use it as the base directory
+      coaiaDir = memoryPath.endsWith('/') ? memoryPath : (memoryPath.endsWith('.jsonl') ? path.dirname(memoryPath) : memoryPath);
+    } else {
+      // Fallback to project root detection
+      const projectRoot = findProjectRoot();
+      if (!projectRoot) {
+        throw new Error('No project detected and no --memory-path configured. Either run from within a project directory (must contain .git, package.json, etc.) or provide --memory-path');
+      }
+      coaiaDir = path.join(projectRoot, '.coaia');
+    }
+    
+    // Create directory structure
     await fs.mkdir(coaiaDir, { recursive: true });
     await fs.mkdir(path.join(coaiaDir, 'templates'), { recursive: true });
     
@@ -1170,57 +1194,59 @@ Action step: "${actionStepTitle}"
     };
   }
 
-  async listCoaiaProjects(): Promise<{ current_project?: string; coaia_contexts?: any; global_charts: number; project_contexts?: any }> {
+  async listCoaiaProjects(): Promise<{ current_project?: string; coaia_contexts?: any; global_charts: number; project_contexts?: any; configured_path?: string }> {
     const result: any = {
       global_charts: 0,
       project_contexts: undefined
     };
 
-    // Check global charts
-    try {
-      const globalGraph = await this.loadGraph();
-      result.global_charts = globalGraph.entities.filter(e => e.entityType === 'structural_tension_chart').length;
-    } catch {
-      result.global_charts = 0;
+    // Show configured memory path if set
+    if (memoryPath) {
+      result.configured_path = memoryPath;
+      result.message = `Using configured memory path: ${memoryPath}`;
     }
 
-    // Check project-local charts
-    const projectRoot = findProjectRoot();
-    if (projectRoot) {
-      const coaiaDir = path.join(projectRoot, '.coaia');
-      if (existsSync(coaiaDir)) {
-        result.current_project = projectRoot;
+    // Check charts in configured/detected COAIA directory
+    const coaiaDir = memoryPath ? 
+      (memoryPath.endsWith('/') ? memoryPath : (memoryPath.endsWith('.jsonl') ? path.dirname(memoryPath) : memoryPath)) :
+      (() => {
+        const projectRoot = findProjectRoot();
+        return projectRoot ? path.join(projectRoot, '.coaia') : null;
+      })();
+
+    if (coaiaDir && existsSync(coaiaDir)) {
+      result.current_project = coaiaDir;
+      
+      // Find all chart files in COAIA directory
+      try {
+        const files = await fs.readdir(coaiaDir);
+        const chartFiles = files.filter(file => file.endsWith('.jsonl') && file.startsWith('charts'));
         
-        // Find all chart files in .coaia directory
-        try {
-          const files = await fs.readdir(coaiaDir);
-          const chartFiles = files.filter(file => file.endsWith('.jsonl') && file.startsWith('charts'));
+        const contexts: any = {};
+        let totalProjectCharts = 0;
+        
+        for (const file of chartFiles) {
+          const filePath = path.join(coaiaDir, file);
+          const contextName = file === 'charts.jsonl' ? 'default' : file.replace('charts-', '').replace('.jsonl', '');
           
-          const contexts: any = {};
-          let totalProjectCharts = 0;
-          
-          for (const file of chartFiles) {
-            const filePath = path.join(coaiaDir, file);
-            const contextName = file === 'charts.jsonl' ? 'default' : file.replace('charts-', '').replace('.jsonl', '');
+          try {
+            const content = await fs.readFile(filePath, 'utf-8');
+            const lines = content.split('\n').filter(line => line.trim() && !line.startsWith('#'));
+            const chartCount = lines.filter(line => {
+              try {
+                const item = JSON.parse(line);
+                return item.type === 'entity' && item.entityType === 'structural_tension_chart';
+              } catch {
+                return false;
+              }
+            }).length;
             
-            try {
-              const content = await fs.readFile(filePath, 'utf-8');
-              const lines = content.split('\n').filter(line => line.trim() && !line.startsWith('#'));
-              const chartCount = lines.filter(line => {
-                try {
-                  const item = JSON.parse(line);
-                  return item.type === 'entity' && item.entityType === 'structural_tension_chart';
-                } catch {
-                  return false;
-                }
-              }).length;
-              
-              contexts[contextName] = {
-                file: file,
-                path: filePath,
-                charts: chartCount
-              };
-              totalProjectCharts += chartCount;
+            contexts[contextName] = {
+              file: file,
+              path: filePath,
+              charts: chartCount
+            };
+            totalProjectCharts += chartCount;
             } catch {
               // File not readable, skip
               contexts[contextName] = {
