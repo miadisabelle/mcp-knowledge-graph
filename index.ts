@@ -20,13 +20,13 @@ const argv = minimist(process.argv.slice(2));
 // Handle help command
 if (argv.help || argv.h) {
   console.log(`
-🧠 COAIA Memory - Creative-Oriented AI Assistant Memory System v2.4.0
+🧠 COAIA Spiral - Creative-Oriented AI Assistant Memory System v2.4.0
    Based on Robert Fritz's Structural Tension methodology
    Enhanced with .coaia project organization
 
 DESCRIPTION:
    MCP server that extends knowledge graphs with structural tension charts for 
-   creative-oriented memory management. Supports advancing patterns, telescoping
+   creative-oriented spiral memory management. Supports advancing patterns, telescoping
    charts, and natural language interaction for AI assistants.
    
    Project Organization:
@@ -36,8 +36,8 @@ DESCRIPTION:
    • Project-local vs global chart management
 
 USAGE:
-   coaia-memory [OPTIONS]
-   npx coaia-memory [OPTIONS]
+   coaia-spiral [OPTIONS]
+   npx coaia-spiral [OPTIONS]
 
 OPTIONS:
    --memory-path PATH    Custom path for memory storage (default: ./memory.jsonl)
@@ -91,14 +91,14 @@ MCP TOOLS AVAILABLE:
 EXAMPLE USAGE:
 
    # Start with custom memory path
-   coaia-memory --memory-path /path/to/my-charts.jsonl
+   coaia-spiral --memory-path /path/to/my-charts.jsonl
    
    # Use in Claude Desktop (add to claude_desktop_config.json):
    {
      "mcpServers": {
-       "coaia-memory": {
+       "my-spiral-project": {
          "command": "npx", 
-         "args": ["-y", "coaia-memory", "--memory-path", "./charts.jsonl"]
+         "args": ["-y", "coaia-spiral", "--memory-path", "./charts.jsonl"]
        }
      }
    }

@@ -36,16 +36,16 @@ COAIA Memory extends traditional knowledge graphs with **structural tension char
 
 ### As NPX Package
 ```bash
-npx coaia-memory --memory-path ./my-charts.jsonl
+npx coaia-spiral --memory-path ./my-charts.jsonl
 ```
 
 ### In Claude Desktop Config
 ```json
 {
   "mcpServers": {
-    "coaia-memory": {
+    "my-spiral-project": {
       "command": "npx",
-      "args": ["-y", "coaia-memory", "--memory-path", "/path/to/your/charts.jsonl"],
+      "args": ["-y", "coaia-spiral", "--memory-path", "/path/to/your/charts.jsonl"],
       "autoapprove": [
         "create_structural_tension_chart",
         "telescope_action_step", 
