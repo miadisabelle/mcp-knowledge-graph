@@ -1,10 +1,10 @@
-# COAIA Memory - Creative-Oriented AI Assistant Memory System
+# COAIA Spiral - Creative-Oriented AI Assistant Memory System
 
-> MCP server implementing structural tension charts and advancing pattern support based on Robert Fritz's creative methodology
+> MCP server implementing structural tension charts and advancing spiral patterns based on Robert Fritz's creative methodology
 
-## What is COAIA Memory?
+## What is COAIA Spiral?
 
-COAIA Memory extends traditional knowledge graphs with **structural tension charts** - a powerful framework for organizing creative processes around desired outcomes rather than problem-solving. Based on Robert Fritz's structural tension methodology, it helps AI assistants maintain creative orientation and support advancing patterns.
+COAIA Spiral extends traditional knowledge graphs with **structural tension charts** - a powerful framework for organizing creative processes around desired outcomes rather than problem-solving. Based on Robert Fritz's structural tension methodology, it helps AI assistants maintain creative orientation and support advancing spiral patterns.
 
 **Current Version**: v2.4.0 (COAIA Project Organization) - **Now includes .coaia directory support for organized structural tension chart management**
 
@@ -72,16 +72,16 @@ my-project/
 
 ### As NPX Package
 ```bash
-npx coaia-memory --memory-path ./my-charts.jsonl
+npx coaia-spiral --memory-path ./my-charts.jsonl
 ```
 
 ### In Claude Desktop Config
 ```json
 {
   "mcpServers": {
-    "coaia-memory": {
+    "coaia-spiral": {
       "command": "npx",
-      "args": ["-y", "coaia-memory", "--memory-path", "/path/to/your/charts.jsonl"],
+      "args": ["-y", "coaia-spiral", "--memory-path", "/path/to/your/charts.jsonl"],
       "autoapprove": [
         "create_structural_tension_chart",
         "telescope_action_step", 
@@ -103,7 +103,7 @@ npx coaia-memory --memory-path ./my-charts.jsonl
 ### Local Development
 ```bash
 git clone <repository>
-cd coaia-memory
+cd coaia-spiral
 npm install
 npm run build
 ```
@@ -249,6 +249,6 @@ claude-code  # Launch with pre-configured MCP setup
 
 ## Philosophy
 
-COAIA Memory embodies the principle that **structure determines behavior**. By organizing memory around structural tension rather than problem-solving patterns, it naturally supports creative advancement and helps users build the life they want to create.
+COAIA Spiral embodies the principle that **structure determines behavior**. By organizing memory around structural tension rather than problem-solving patterns, it naturally supports creative advancement and helps users build the life they want to create.
 
 The system recognizes that structural tension is the fundamental organizing principle of the creative process - not a problem to be solved, but a generative force to be harnessed.

@@ -1395,9 +1395,9 @@ const knowledgeGraphManager = new KnowledgeGraphManager();
 
 // The server instance and tools exposed to AI models
 const server = new Server({
-  name: "coaia-memory",
-  version: "2.2.9",
-  description: "COAIA Memory - Structural Tension Charts based on Robert Fritz methodology. 🚨 NEW LLM? Run 'init_llm_guidance' first to understand delayed resolution principle and avoid common mistakes."
+  name: "coaia-spiral",
+  version: "2.2.12", // Keep the current version from package.json
+  description: "COAIA Spiral - Structural Tension Charts based on Robert Fritz methodology, embodying advancing spiral patterns. 🚨 NEW LLM? Run 'init_llm_guidance' first to understand delayed resolution principle and avoid common mistakes."
 },    {
     capabilities: {
       tools: {},
