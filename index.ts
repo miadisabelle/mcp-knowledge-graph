@@ -1194,7 +1194,7 @@ Action step: "${actionStepTitle}"
     };
   }
 
-  async listCoaiaProjects(): Promise<{ current_project?: string; coaia_contexts?: any; global_charts: number; project_contexts?: any; configured_path?: string }> {
+  async listCoaiaProjects(): Promise<{ current_project?: string; coaia_contexts?: any; global_charts: number; project_contexts?: any; configured_path?: string; message?: string }> {
     const result: any = {
       global_charts: 0,
       project_contexts: undefined
@@ -1207,7 +1207,7 @@ Action step: "${actionStepTitle}"
     }
 
     // Check charts in configured/detected COAIA directory
-    const coaiaDir = memoryPath ? 
+    const coaiaDir = memoryPath ?
       (memoryPath.endsWith('/') ? memoryPath : (memoryPath.endsWith('.jsonl') ? path.dirname(memoryPath) : memoryPath)) :
       (() => {
         const projectRoot = findProjectRoot();
@@ -1216,19 +1216,19 @@ Action step: "${actionStepTitle}"
 
     if (coaiaDir && existsSync(coaiaDir)) {
       result.current_project = coaiaDir;
-      
+
       // Find all chart files in COAIA directory
       try {
         const files = await fs.readdir(coaiaDir);
         const chartFiles = files.filter(file => file.endsWith('.jsonl') && file.startsWith('charts'));
-        
+
         const contexts: any = {};
         let totalProjectCharts = 0;
-        
+
         for (const file of chartFiles) {
           const filePath = path.join(coaiaDir, file);
           const contextName = file === 'charts.jsonl' ? 'default' : file.replace('charts-', '').replace('.jsonl', '');
-          
+
           try {
             const content = await fs.readFile(filePath, 'utf-8');
             const lines = content.split('\n').filter(line => line.trim() && !line.startsWith('#'));
@@ -1240,34 +1240,33 @@ Action step: "${actionStepTitle}"
                 return false;
               }
             }).length;
-            
+
             contexts[contextName] = {
               file: file,
               path: filePath,
               charts: chartCount
             };
             totalProjectCharts += chartCount;
-            } catch {
-              // File not readable, skip
-              contexts[contextName] = {
-                file: file,
-                path: filePath,
-                charts: 0
-              };
-            }
+          } catch {
+            // File not readable, skip
+            contexts[contextName] = {
+              file: file,
+              path: filePath,
+              charts: 0
+            };
           }
-          
-          result.project_contexts = contexts;
-          result.total_project_charts = totalProjectCharts;
-          result.coaia_structure = {
-            directory: coaiaDir,
-            available_contexts: Object.keys(contexts).sort(),
-            templates: path.join(coaiaDir, 'templates')
-          };
-        } catch {
-          // Directory not readable
-          result.project_contexts = {};
         }
+
+        result.project_contexts = contexts;
+        result.total_project_charts = totalProjectCharts;
+        result.coaia_structure = {
+          directory: coaiaDir,
+          available_contexts: Object.keys(contexts).sort(),
+          templates: path.join(coaiaDir, 'templates')
+        };
+      } catch {
+        // Directory not readable
+        result.project_contexts = {};
       }
     }
 
@@ -1284,10 +1283,10 @@ Action step: "${actionStepTitle}"
   ): Promise<{ chartId: string; entities: Entity[]; relations: Relation[]; context: string }> {
     // Use the existing validation logic
     const problemSolvingWords = ['fix', 'solve', 'eliminate', 'prevent', 'stop', 'avoid', 'reduce', 'remove'];
-    const detectedProblemWords = problemSolvingWords.filter(word => 
+    const detectedProblemWords = problemSolvingWords.filter(word =>
       desiredOutcome.toLowerCase().includes(word)
     );
-    
+
     if (detectedProblemWords.length > 0) {
       throw new Error(`🌊 CREATIVE ORIENTATION REQUIRED
 
@@ -1435,15 +1434,10 @@ const knowledgeGraphManager = new KnowledgeGraphManager();
 
 
 // The server instance and tools exposed to AI models
-const server = new Server({
-  name: "coaia-spiral",
-  version: "2.2.12", // Keep the current version from package.json
-  description: "COAIA Spiral - Structural Tension Charts based on Robert Fritz methodology, embodying advancing spiral patterns. 🚨 NEW LLM? Run 'init_llm_guidance' first to understand delayed resolution principle and avoid common mistakes."
-},    {
-    capabilities: {
-      tools: {},
-    },
-  },);
+const server = new Server(
+  { name: "coaia-spiral", version: "3.0.1" },
+  { capabilities: { tools: { listChanged: true } } }
+);
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
