@@ -968,15 +968,20 @@ Current Reality: "${currentReality}"
     parentChartId: string,
     actionStepTitle: string,
     dueDate?: string,
-    currentReality?: string
+    currentReality?: string,
+    context?: string
   ): Promise<{ chartId: string; actionStepName: string }> {
-    const graph = await this.loadGraph();
+    // Use context-aware loading to find charts in specific contexts
+    const graph = this.shouldUseCoaiaPersistence() 
+      ? await this.loadCoaiaGraph(context) 
+      : await this.loadGraph();
     const parentChart = graph.entities.find(e => 
       e.entityType === 'structural_tension_chart' && e.metadata?.chartId === parentChartId
     );
     
     if (!parentChart) {
-      throw new Error(`Parent chart ${parentChartId} not found`);
+      const contextMsg = context ? ` in context '${context}'` : ' in default context';
+      throw new Error(`Parent chart ${parentChartId} not found${contextMsg}. Use 'list_charts_in_context' to see available charts or specify correct context parameter.`);
     }
 
     // Get parent chart's due date for auto-distribution
@@ -1020,15 +1025,24 @@ Action step: "${actionStepTitle}"
     
     const actionCurrentReality = currentReality;
 
-    // Create telescoped structural tension chart
-    const telescopedChart = await this.createStructuralTensionChart(
-      actionStepTitle,
-      actionCurrentReality, 
-      actionStepDueDate
-    );
+    // Create telescoped structural tension chart in same context as parent
+    const telescopedChart = context 
+      ? await this.createStructuralTensionChartInContext(
+          actionStepTitle,
+          actionCurrentReality, 
+          actionStepDueDate,
+          context
+        )
+      : await this.createStructuralTensionChart(
+          actionStepTitle,
+          actionCurrentReality, 
+          actionStepDueDate
+        );
 
     // Update the telescoped chart's metadata to show parent relationship
-    const updatedGraph = await this.loadGraph();
+    const updatedGraph = this.shouldUseCoaiaPersistence() 
+      ? await this.loadCoaiaGraph(context) 
+      : await this.loadGraph();
     const telescopedChartEntity = updatedGraph.entities.find(e => e.name === `${telescopedChart.chartId}_chart`);
     if (telescopedChartEntity && telescopedChartEntity.metadata) {
       telescopedChartEntity.metadata.parentChart = parentChartId;
@@ -1051,7 +1065,7 @@ Action step: "${actionStepTitle}"
       }]);
     }
 
-    await this.saveGraph(updatedGraph);
+    await this.saveGraphAppropriate(updatedGraph, context);
 
     return { 
       chartId: telescopedChart.chartId, 
@@ -1720,13 +1734,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {
             parentChartId: { type: "string", description: "ID of the parent chart to add the action step to" },
             actionStepTitle: { type: "string", description: "Title of the action step (becomes desired outcome of telescoped chart)" },
-            dueDate: { 
-              type: "string", 
-              description: "Optional due date for the action step (ISO string). If not provided, auto-distributed between now and parent due date"
-            },
             currentReality: {
               type: "string",
               description: "Current reality specific to this action step. Required to maintain structural tension - assess the actual current state relative to this action step, not readiness to begin."
+            },
+            context: { 
+              type: "string", 
+              description: "Context to search for parent chart (e.g., 'work', 'personal', 'Mia_Miette_Diaries'). If not specified, searches default context." 
+            },
+            dueDate: { 
+              type: "string", 
+              description: "Optional due date for the action step (ISO string). If not provided, auto-distributed between now and parent due date"
             }
           },
           required: ["parentChartId", "actionStepTitle", "currentReality"]
@@ -1983,7 +2001,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         args.parentChartId as string,
         args.actionStepTitle as string,
         args.dueDate as string,
-        args.currentReality as string
+        args.currentReality as string,
+        args.context as string
       );
       return { content: [{ type: "text", text: `Action step '${args.actionStepTitle}' added to chart '${args.parentChartId}' as telescoped chart '${addActionResult.chartId}'` }] };
     case "remove_action_step":
