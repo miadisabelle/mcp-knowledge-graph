@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -11,6 +9,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import minimist from 'minimist';
 import { isAbsolute } from 'path';
+import http from 'http';
 
 // Parse args and handle paths safely
 const argv = minimist(process.argv.slice(2));
@@ -193,7 +192,7 @@ const knowledgeGraphManager = new KnowledgeGraphManager();
 
 
 // The server instance and tools exposed to AI models
-const server = new Server({
+export const server = new Server({
   name: "mcp-knowledge-graph",
   version: "1.0.1",
 },    {
@@ -202,184 +201,10 @@ const server = new Server({
     },
   },);
 
-server.setRequestHandler(ListToolsRequestSchema, async () => {
-  return {
-    tools: [
-      {
-        name: "create_entities",
-        description: "Create multiple new entities in the knowledge graph",
-        inputSchema: {
-          type: "object",
-          properties: {
-            entities: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  name: { type: "string", description: "The name of the entity" },
-                  entityType: { type: "string", description: "The type of the entity" },
-                  observations: {
-                    type: "array",
-                    items: { type: "string" },
-                    description: "An array of observation contents associated with the entity"
-                  },
-                },
-                required: ["name", "entityType", "observations"],
-              },
-            },
-          },
-          required: ["entities"],
-        },
-      },
-      {
-        name: "create_relations",
-        description: "Create multiple new relations between entities in the knowledge graph. Relations should be in active voice",
-        inputSchema: {
-          type: "object",
-          properties: {
-            relations: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  from: { type: "string", description: "The name of the entity where the relation starts" },
-                  to: { type: "string", description: "The name of the entity where the relation ends" },
-                  relationType: { type: "string", description: "The type of the relation" },
-                },
-                required: ["from", "to", "relationType"],
-              },
-            },
-          },
-          required: ["relations"],
-        },
-      },
-      {
-        name: "add_observations",
-        description: "Add new observations to existing entities in the knowledge graph",
-        inputSchema: {
-          type: "object",
-          properties: {
-            observations: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  entityName: { type: "string", description: "The name of the entity to add the observations to" },
-                  contents: {
-                    type: "array",
-                    items: { type: "string" },
-                    description: "An array of observation contents to add"
-                  },
-                },
-                required: ["entityName", "contents"],
-              },
-            },
-          },
-          required: ["observations"],
-        },
-      },
-      {
-        name: "delete_entities",
-        description: "Delete multiple entities and their associated relations from the knowledge graph",
-        inputSchema: {
-          type: "object",
-          properties: {
-            entityNames: {
-              type: "array",
-              items: { type: "string" },
-              description: "An array of entity names to delete"
-            },
-          },
-          required: ["entityNames"],
-        },
-      },
-      {
-        name: "delete_observations",
-        description: "Delete specific observations from entities in the knowledge graph",
-        inputSchema: {
-          type: "object",
-          properties: {
-            deletions: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  entityName: { type: "string", description: "The name of the entity containing the observations" },
-                  observations: {
-                    type: "array",
-                    items: { type: "string" },
-                    description: "An array of observations to delete"
-                  },
-                },
-                required: ["entityName", "observations"],
-              },
-            },
-          },
-          required: ["deletions"],
-        },
-      },
-      {
-        name: "delete_relations",
-        description: "Delete multiple relations from the knowledge graph",
-        inputSchema: {
-          type: "object",
-          properties: {
-            relations: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  from: { type: "string", description: "The name of the entity where the relation starts" },
-                  to: { type: "string", description: "The name of the entity where the relation ends" },
-                  relationType: { type: "string", description: "The type of the relation" },
-                },
-                required: ["from", "to", "relationType"],
-              },
-              description: "An array of relations to delete"
-            },
-          },
-          required: ["relations"],
-        },
-      },
-      {
-        name: "read_graph",
-        description: "Read the entire knowledge graph",
-        inputSchema: {
-          type: "object",
-          properties: {},
-        },
-      },
-      {
-        name: "search_nodes",
-        description: "Search for nodes in the knowledge graph based on a query",
-        inputSchema: {
-          type: "object",
-          properties: {
-            query: { type: "string", description: "The search query to match against entity names, types, and observation content" },
-          },
-          required: ["query"],
-        },
-      },
-      {
-        name: "open_nodes",
-        description: "Open specific nodes in the knowledge graph by their names",
-        inputSchema: {
-          type: "object",
-          properties: {
-            names: {
-              type: "array",
-              items: { type: "string" },
-              description: "An array of entity names to retrieve",
-            },
-          },
-          required: ["names"],
-        },
-      },
-    ],
-  };
-});
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+
+
+server.setRequestHandler(CallToolRequestSchema, async (request: typeof CallToolRequestSchema._type) => {
   const { name, arguments: args } = request.params;
 
   if (!args) {
@@ -413,13 +238,44 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
-async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error("Knowledge Graph MCP Server running on stdio");
+export async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse) {
+  if (req.method === 'POST' && req.url === '/rpc') {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', async () => {
+      try {
+        const request = JSON.parse(body);
+        const response = await server.handleRequest(request);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(response));
+      } catch (error) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: (error as Error).message }));
+      }
+    });
+  } else {
+    res.writeHead(404);
+    res.end();
+  }
 }
 
-main().catch((error) => {
-  console.error("Fatal error in main():", error);
-  process.exit(1);
-});
+export async function main(httpServer?: http.Server) {
+  if (httpServer) {
+    // If an HTTP server is provided, we don't need a transport
+    // The server will handle requests directly
+    console.error("Knowledge Graph MCP Server running on HTTP");
+  } else {
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    console.error("Knowledge Graph MCP Server running on stdio");
+  }
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error("Fatal error in main():", error);
+    process.exit(1);
+  });
+}
