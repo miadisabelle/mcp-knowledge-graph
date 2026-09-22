@@ -11,17 +11,442 @@ COAIA Memory implements Robert Fritz's Structural Tension methodology. This is N
 
 **"Tolerate discrepancy, tension, and delayed resolution"** - Robert Fritz
 
+## ⚠️ CRITICAL: Action Steps Are NOT a To-Do List
+
+**The most common LLM failure**: Treating action steps as tasks to check off.
+
+**Action Steps ARE:**
+- Strategic secondary choices that SUPPORT the primary goal
+- UNDERSTOOD IN THE CONTEXT of structural tension (not standalone tasks)
+- RELATED TO EACH OTHER as part of an overview strategy
+- Actions designed to ENABLE you to CREATE your goal
+- A BLUEPRINT for the creative process
+
+**Action Steps ARE NOT:**
+- Items on a checklist to complete
+- Independent tasks
+- Detailed instructions
+- Problems to solve
+
+**The Test Question**: "If we took these steps, would we achieve this result?"
+- If No → add more strategic steps
+- If Yes → the action plan is complete
+
+
+
+
+
 ## When to Use Which Tool
+
+### \`create_structural_tension_chart\`
+**Use when:** User wants to establish a new primary goal or desired outcome
+**Example:** "I want to learn Python web development in 3 months"
+
+### \`add_action_step\`
+**Use when:** User wants to add strategic actions to an existing chart
+**Example:** "I need to add 'Complete Django tutorial' to my Python learning goal"
+**What happens:** Creates a telescoped structural tension chart automatically
+
+### \`telescope_action_step\`
+**Use when:** User wants to break down an existing action step into details
+**Example:** "Break down the Django tutorial step further"
+**What happens:** Expands the action step (which is already a chart) with specific current reality and optional sub-actions
+
+### Key Decision Logic for LLMs:
+- **New goal?** → \`create_structural_tension_chart\`
+- **Add actions to goal?** → \`add_action_step\`
+- **Need detail on action?** → \`telescope_action_step\`
 
 
 
 ## Common LLM Mistakes to Avoid
+
+### Mistake 1: Treating Action Steps as Simple Tasks
+**Wrong**: "I'll add these tasks to your to-do list"
+**Right**: "I'll add these strategic action steps, each becoming its own chart"
+
+### Mistake 2: Recreating Charts Instead of Adding Steps
+**Wrong**: "The chart needs to be recreated with action steps"
+**Right**: "I can add action steps to your existing chart using add_action_step"
+
+### Mistake 3: Confusing Telescoping with Task Breakdown
+**Wrong**: "Telescoping breaks your task into smaller subtasks"
+**Right**: "Telescoping expands your action step into its own detailed structural tension chart"
 
 
 
 ## Current Reality Guidelines (Critical for LLMs)
 
 **DELAYED RESOLUTION PRINCIPLE**: "Tolerate discrepancy, tension, and delayed resolution" - Robert Fritz
+
+### Critical Warning for LLMs:
+- **NEVER** use default current reality that assumes readiness ("Ready to begin")
+- **ALWAYS** require explicit current reality assessment from user input
+- **HOLD TENSION** until proper assessment is made - do not prematurely resolve
+- Premature resolution DESTROYS the structural tension needed for creative advancement
+
+Based on Robert Fritz's methodology, current reality must be:
+
+### ✅ Correct Current Reality Formulation:
+- **Use goal as reference point**: Current reality ONLY relevant to the desired outcome
+- **Objective facts**: "Poem notions in Grok Account", not "Need to retrieve poem notions"
+- **Present state**: Where you are NOW, not how you got there
+- **Whole picture**: All relevant facts in relationship to the goal
+- **No assumptions**: Translate assumptions into objective observations
+- **No exaggeration**: Reality as it is, not better or worse than actual
+- **Concise**: Brief, factual statements
+
+### ❌ Common LLM Mistakes in Current Reality:
+- **Adding implied actions**: "Need to retrieve..." (the tension implies this)
+- **Elaborating on readiness**: "Ready to apply learned concepts" (unnecessary)
+- **Process descriptions**: How you got here vs where you are
+- **Assumptions**: What you think might happen vs what is
+- **Motivational language**: "Excited to begin" vs factual state
+
+### Examples of Proper Current Reality:
+✅ **Good**: "Poem notions in Grok Account"
+✅ **Good**: "Waiting on Notions"
+✅ **Good**: "No Django experience"
+✅ **Good**: "Budget: \$5000"
+✅ **Good**: "Completed Django models section, struggling with views"
+
+❌ **Poor**: "Need to retrieve poem notions from Grok account"
+❌ **Poor**: "Ready to apply learned concepts to poem creation"
+❌ **Poor**: "Haven't started learning Django yet but excited to begin"
+❌ **Poor**: "Currently have limited budget but working on increasing it"
+❌ **WRONG (Premature Resolution)**: "Ready to begin Django tutorial"
+❌ **WRONG (Premature Resolution)**: "Prepared to start learning Python"
+❌ **WRONG (Premature Resolution)**: "All set to tackle this action step"
+
+
+
+## Goal Refinement Checklist (Robert Fritz)
+
+When helping users define or refine their desired outcomes, use these principles:
+
+### 1. Can You Picture It?
+Form a mental picture of the result. Ask: "Is this the result I want to create?"
+- If yes → proceed with structural tension
+- If no → continue refining until clear
+
+### 2. Quantify Where Possible
+Assign actual numbers to goals - makes organizing actions easier.
+
+| Wrong | Right |
+|-------|-------|
+| "Increased business" | "5 new business clients" |
+| "More savings" | "\$10,000 in savings account" |
+| "Better website traffic" | "10,000 monthly visitors" |
+
+### 3. Avoid Comparative Terms
+Words like "more," "better," "less," "increased" only have meaning compared to something else.
+
+| Wrong | Right |
+|-------|-------|
+| "Better health" | "Very good health" |
+| "More productive" | "Complete 3 focused work blocks daily" |
+| "Less stress" | "Calm, centered state of mind" |
+
+### 4. Create Results, Don't Solve Problems
+Problem-solving = taking action to have something GO AWAY.
+Creating = taking action to have something COME INTO BEING.
+
+| Wrong (Problem-solving) | Right (Creating) |
+|-------------------------|------------------|
+| "Overcome my weight problem" | "I weigh 150 pounds" |
+| "Fix the roof so it doesn't leak" | "The roof is in perfect shape" |
+| "Get rid of excessive work schedule" | "Well-planned work schedule with family time balance" |
+| "Stop procrastinating" | "Consistent daily action on priorities" |
+
+### 5. Describe Results, Not Process
+Process tells us HOW. Results tell us WHAT. Process serves the result.
+
+| Wrong (Process) | Right (Result) |
+|-----------------|----------------|
+| "Run four miles every day" | "A well-toned and healthy body" |
+| "Get significant other to agree to vacation" | "A family vacation everyone loves" |
+| "Learn Photoshop" | "Mastery of Photoshop" |
+| "Read books about leadership" | "Effective leadership skills in practice" |
+
+### 6. Be Specific, Not Vague
+Specific outcomes are easier to organize actions around.
+
+| Wrong (Vague) | Right (Specific) |
+|---------------|------------------|
+| "Improve my skills" | "Mastery of Django web framework" |
+| "Have better relationships" | "Deep, trusting relationship with my partner" |
+| "Be more successful" | "Promotion to Senior Engineer with \$120k salary" |
+
+
+
+
+
+## The Three Types of Action (Robert Fritz) - Expanded
+
+Understanding when to use each type prevents common creative process mistakes:
+
+### 1. Overview Actions
+- **When**: Early in process, establishing the action plan
+- **Purpose**: Strategic steps that advance toward the goal
+- **Characteristics**: Broad, related to each other, form a blueprint
+- **Example**: "Complete Django tutorial" (strategic, part of larger plan)
+
+### 2. Experimental Actions
+- **When**: Throughout process, especially when exploring new territory
+- **Purpose**: Learning, exploring, "sketches before the painting"
+- **Characteristics**: Low-risk, teaching, revealing next steps
+- **Example**: "Build a simple prototype to test the concept"
+
+### 3. Refinement Actions
+- **When**: Near completion, when overview is clear
+- **Purpose**: Final polishing to bring creation to full realization
+- **Characteristics**: Detailed, precise, finishing touches
+- **Warning**: If done too early, stifles creative energy
+
+**Common Mistake**: Planning and planning without acting, waiting for complete plans.
+**Reality**: Learning comes through action. Ideas adjust when they meet reality.
+
+
+
+
+
+## Creator Moment of Truth (Progress Review)
+
+When it's time to assess progress on a chart, guide users through this four-step review process. This transforms discrepancies into learning opportunities.
+
+### Step 1: Acknowledge the Truth
+**Question**: What difference exists between what was expected and what was delivered?
+
+- Simply report the facts
+- No excuses, no blame
+- "We expected X, we delivered Y"
+- This is about seeing reality clearly
+
+**LLM Role**: Help user articulate the factual difference without judgment.
+
+### Step 2: Analyze How It Happened
+**Question**: How did this come to pass?
+
+- Step-by-step tracking (not blame)
+- What assumptions were made?
+- What did you tell yourself?
+- How did you approach it?
+
+**LLM Role**: Guide user through honest self-examination. This is co-exploration, not criticism.
+
+### Step 3: Create a Plan for Next Time
+**Question**: Given what you discovered, how will you change your approach?
+
+- What assumptions turned out not to be true?
+- What patterns need to change?
+- What specific actions will you take differently?
+
+**LLM Role**: Help user formulate concrete adjustments based on insights from Step 2.
+
+### Step 4: Set Up a Feedback System
+**Question**: How will you track whether you're actually making the changes?
+
+- Simple system for self-management
+- How will you notice if you're falling back to old patterns?
+- What will remind you of the new approach?
+
+**LLM Role**: Help establish practical tracking mechanism.
+
+### Applying Creator Moment of Truth to Charts
+
+When user wants to review progress:
+1. Look at current reality vs. desired outcome
+2. Examine completed vs. incomplete action steps
+3. Walk through the four steps
+4. Update chart with new observations from the analysis
+5. Adjust action steps based on learnings
+
+**Key Insight**: The goal is not perfection but effectiveness. Use discrepancies to learn, not to judge.
+
+## When to Use Narrative Beats
+
+**Narrative beats** document complex stories across three archetypal universes simultaneously:
+- **Engineer-world**: Technical/analytical perspective
+- **Ceremony-world**: Relational/spiritual protocol awareness
+- **Story-engine-world**: Narrative/creative progression
+
+Use narrative beats when you need to capture **how a story unfolds across multiple dimensions**—not just what happened technically, but what it means relationally and narratively.
+
+### Chart vs. Narrative Beat
+
+| Aspect | Chart | Narrative Beat |
+|--------|-------|-----------------|
+| **Purpose** | Create a desired outcome from current reality | Document how a complex story unfolds |
+| **Structure** | Outcome + Reality + Actions | Act + Prose + Universes + Lessons |
+| **Scope** | Individual goal/strategy | Incident/milestone across all dimensions |
+| **When to use** | Building toward something | Making sense of what happened |
+| **Output** | Action steps toward goal | Integrated understanding of story |
+
+### Examples: When to Create Narrative Beats
+
+✅ **Create a beat when**:
+- An incident affects technical AND relational AND narrative dimensions
+- You need to document how three perspectives understood the same event differently
+- An action step revealed something about the larger story
+- A transgression becomes wisdom through integration
+
+❌ **Don't use beats for**:
+- Simple task documentation (use charts instead)
+- Linear progress tracking (use action steps)
+- Technical logs (use observations on current_reality)
+
+
+
+## The Three Narrative Beat Tools
+
+### 1. \`create_narrative_beat\`
+
+Creates a new narrative beat documenting a story event across the three universes.
+
+**When to use**: When a significant moment (learning, transgression, discovery, integration) needs multi-universe documentation.
+
+**Parameters**:
+- \`parentChartId\`: The chart this beat belongs to (required)
+- \`title\`: Short name of the beat (e.g., "The Sacred Object Violation")
+- \`act\`: Which act in the narrative sequence (1, 2, 3, 4, 5...)
+- \`type_dramatic\`: Story function—Crisis/Antagonist Force, Discovery/Learning, Resolution Beginning, New Awareness, Character Development
+- \`universes\`: List of which archetypal universes this beat involves
+  - "engineer-world" — technical/analytical view
+  - "ceremony-world" — relational/spiritual view
+  - "story-engine-world" — narrative/creative view
+- \`description\`: Factual summary of what happened (visible in list)
+- \`prose\`: Full narrative prose showing how all three universes experienced this moment
+- \`lessons\`: Key insights or learnings from this beat
+- \`assessRelationalAlignment\` (optional): Boolean—invoke iaip-mcp to assess relational science alignment
+- \`initiateFourDirectionsInquiry\` (optional): Boolean—invoke iaip-mcp for Four Directions guidance
+
+**Example**:
+\`\`\`
+Create a narrative beat titled "The Sacred Object Violation"
+Act 2, Crisis/Antagonist Force
+Engineer-world: Technical boundary crossed (direct file editing)
+Ceremony-world: Sacred artifact dishonored
+Story-engine-world: Character reveals flaw through action
+\`\`\`
+
+**Result**: Beat created with:
+- ID automatically generated
+- Relations created linking beat to parent chart
+- Optional relational alignment assessment
+- Optional Four Directions guidance embedded in the beat
+
+### 2. \`telescope_narrative_beat\`
+
+Breaks down a narrative beat into detailed sub-beats for deeper exploration.
+
+**When to use**: When a beat is too broad—needs to show the sub-moments that compose it.
+
+**Parameters**:
+- \`parentBeatName\`: Name of the beat to expand
+- \`newCurrentReality\`: Updated understanding of what's happening at this level of detail
+- \`initialSubBeats\` (optional): Array of sub-beats to create:
+  - Each has: title, type_dramatic, description, prose, lessons
+
+**Example**:
+\`\`\`
+Telescope "The Integrity Test" into:
+  - Sub-beat 1: "Question Asked" (Discovery)
+  - Sub-beat 2: "Truth Avoidance Attempted" (Crisis)
+  - Sub-beat 3: "Direct Admission" (Turning Point)
+\`\`\`
+
+**Result**: Parent beat now has detailed sub-structure showing how the larger moment unfolds.
+
+### 3. \`list_narrative_beats\`
+
+Lists all narrative beats, optionally filtered by parent chart.
+
+**When to use**: After creating beats, to verify they're properly stored and to review the narrative arc.
+
+**Parameters**:
+- \`parentChartId\` (optional): Filter to beats within a specific chart
+
+**Result**: Shows all beats with:
+- Title and act number
+- Dramatic type and universes involved
+- Full description and prose
+- Explicit lessons
+- Relational alignment assessments (if invoked)
+- Four Directions guidance (if invoked)
+
+
+
+## Integration with Optional iaip-mcp Tools
+
+When creating narrative beats, you can optionally invoke iaip-mcp tools for relational and directional enrichment. These are NOT required for beats to work, but add depth:
+
+### \`assess_relational_alignment\` (Optional)
+
+Assesses how well the narrative beat aligns with relational science principles:
+- Does the beat honor the web of relationships?
+- What relational responsibilities emerge?
+- How does this moment affect the relational field?
+
+**Use when**: The beat involves relational harm or breach (transgression, integrity test, apology, repair)
+
+### \`get_direction_guidance\` (Optional)
+
+Provides guidance from the Four Directions framework (North, East, South, West):
+- **North**: Vision/Dream - what's the larger purpose?
+- **East**: Awakening/Intention - what's the call to action?
+- **South**: Gathering/Emotion - what's the emotional/relational wisdom?
+- **West**: Going-in/Introspection - what's the deeper meaning?
+
+**Use when**: The beat needs ceremonial or spiritual perspective, or to integrate indigenous wisdom frameworks.
+
+### \`initiate_holistic_inquiry\` (Optional)
+
+Begins a structured four-direction exploration of the beat's themes.
+
+**Use when**: You want to move through North→East→South→West systematically to develop deep understanding.
+
+
+
+## Common LLM Mistakes with Narrative Beats
+
+❌ **Creating beats for action steps**
+- Action steps become sub-charts via \`add_action_step\` and \`telescope_action_step\`
+- Use beats for story/incident documentation, not for breaking down task work
+
+❌ **Using beats instead of charts for desired outcomes**
+- Beats document what happened; charts create what you want
+- Don't use beats to establish goals
+
+❌ **Ignoring the three universes**
+- A beat with only "engineer-world" perspective isn't complete
+- Each significant beat should engage all three or explicitly explain why only some apply
+
+❌ **Creating too many beats**
+- Each beat should represent a meaningful story moment
+- Not every action step needs a beat; only significant transitions/learnings/transgressions
+
+❌ **Forgetting that beats are first-class entities**
+- Use \`list_narrative_beats\` to query and verify
+- Don't manually add beat entries to JSONL; use the tool
+- Beats have their own relations and metadata just like charts
+
+
+
+## Workflow: From Action to Narrative Beat
+
+**Common pattern**:
+1. **Create chart** with structural tension (outcome + reality)
+2. **Add action steps** as strategic intermediaries
+3. **Complete action steps** as you work
+4. **Recognize significant learning** from an action
+5. **Create narrative beat** documenting that learning across three universes
+6. **Telescope the beat** to show sub-moments if needed
+7. **Use list_narrative_beats** to view your narrative arc
+
+**Result**: Your chart now has:
+- Strategic action structure (action steps)
+- Story structure (narrative beats) showing what the work meant
+- Both technical and relational dimensions visible
 
 ## Essential Tool Workflow
 
@@ -69,7 +494,7 @@ This ensures you remember these principles throughout our conversation.
 
 ---
 
-*Generated by consolidate-guidance.js - Updated: 2025-09-10T04:28:35.187Z*
+*Generated by consolidate-guidance.js - Updated: 2025-12-13T21:09:52.671Z*
 `;
 
-export const GUIDANCE_VERSION = "2025-09-10T04:28:35.188Z";
+export const GUIDANCE_VERSION = "2025-12-13T21:09:52.672Z";

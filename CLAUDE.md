@@ -46,9 +46,12 @@ npx coaia-memory --memory-path ./my-charts.jsonl
     "coaia-memory": {
       "command": "npx",
       "args": ["-y", "coaia-memory", "--memory-path", "/path/to/your/charts.jsonl"],
+      "env": {
+        "COAIA_TOOLS": "STC_TOOLS,init_llm_guidance"
+      },
       "autoapprove": [
         "create_structural_tension_chart",
-        "telescope_action_step", 
+        "manage_action_step",
         "mark_action_complete",
         "get_chart_progress",
         "list_active_charts",
@@ -61,16 +64,58 @@ npx coaia-memory --memory-path ./my-charts.jsonl
 }
 ```
 
+### Tool Configuration via Environment Variables
+
+Selectively enable/disable MCP tools using environment variables:
+
+**COAIA_TOOLS** - Comma/space separated list of tool groups or individual tool names
+- Default: `"STC_TOOLS,init_llm_guidance"`
+
+**COAIA_DISABLED_TOOLS** - Comma/space separated list of tools to exclude (applied after COAIA_TOOLS)
+
+**Available Tool Groups:**
+- `STC_TOOLS` - All structural tension chart tools (11 tools) ✨ recommended
+- `KG_TOOLS` - All knowledge graph tools (9 tools)
+- `CORE_TOOLS` - Essential tools only (4 tools)
+
+**Examples:**
+
+Enable STC tools only (default):
+```bash
+COAIA_TOOLS="STC_TOOLS" npx coaia-memory --memory-path ./charts.jsonl
+```
+
+Enable both STC and KG tools:
+```bash
+COAIA_TOOLS="STC_TOOLS,KG_TOOLS" npx coaia-memory --memory-path ./charts.jsonl
+```
+
+Enable STC tools but disable deletion operations:
+```bash
+COAIA_TOOLS="STC_TOOLS" COAIA_DISABLED_TOOLS="delete_entities,delete_relations" npx coaia-memory
+```
+
+Enable only specific individual tools:
+```bash
+COAIA_TOOLS="create_structural_tension_chart,list_active_charts,mark_action_complete" npx coaia-memory
+```
+
 ## Core Tools
 
 ### Chart Management
 - `create_structural_tension_chart` - Create new chart with outcome, reality, and action steps
-- `telescope_action_step` - Break down action steps into detailed sub-charts
+- `manage_action_step` ✨ **RECOMMENDED** - Unified interface for adding OR expanding action steps (auto-detects intent)
 - `mark_action_complete` - Complete actions and update current reality
 - `get_chart_progress` - Monitor chart advancement
 - `list_active_charts` - Overview of all active charts
 - `update_action_progress` - Track progress on actions without marking complete
 - `update_current_reality` - Add observations directly to current reality
+- `update_desired_outcome` - Change what the chart is creating
+- `update_chart_due_date` - Move the date a chart is due after it was created
+
+### Deprecated Tools (Still Functional)
+- `telescope_action_step` ⚠️ - Use `manage_action_step` instead
+- `add_action_step` ⚠️ - Use `manage_action_step` instead
 
 ### Traditional Knowledge Graph
 - `create_entities` - Add new entities (people, concepts, events)
@@ -95,7 +140,28 @@ npx coaia-memory --memory-path ./my-charts.jsonl
 }
 ```
 
-### Telescoping Detail
+### Adding Action Step (Unified Interface) ✨ RECOMMENDED
+```javascript
+// Natural language: "Add 'Complete Django tutorial' to my Python learning goal"
+{
+  "parentReference": "chart_123",  // Chart ID for new action
+  "actionDescription": "Complete Django tutorial",
+  "currentReality": "Never used Django, familiar with Python basics"
+}
+```
+
+### Expanding Action Step (Unified Interface) ✨ RECOMMENDED
+```javascript
+// Natural language: "Break down the Django tutorial step"
+{
+  "parentReference": "chart_123_action_1",  // Entity name for expansion
+  "actionDescription": "Complete Django tutorial",
+  "currentReality": "Working through official tutorial",  // Optional
+  "initialActionSteps": ["Models", "Views", "Templates"]
+}
+```
+
+### Telescoping Detail (Legacy - Deprecated)
 ```javascript
 // Natural language: "Break down the Django tutorial step"
 {
@@ -176,6 +242,23 @@ npm install
 npm run build
 node test-coaia.js
 ```
+
+## Schema Documentation
+
+Comprehensive schema documentation for external applications and integrations:
+
+### 📊 Quick Access
+- **[schema/data-model-complete.json](./schema/data-model-complete.json)** - All data schemas in one file (JSON)
+- **[schema/data-model-complete.yaml](./schema/data-model-complete.yaml)** - All data schemas in one file (YAML)
+- **[schema/index.json](./schema/index.json)** - Central registry mapping all schemas and tools
+
+### 📚 Detailed Documentation
+- **[schema/README.md](./schema/README.md)** - Complete schema overview and navigation
+- **[schema/data-model/](./schema/data-model/)** - Entity, Relation, KnowledgeGraph, Storage Format
+- **[schema/tools/](./schema/tools/)** - All MCP tool schemas organized by category
+- **[schema/examples/](./schema/examples/)** - Example payloads and usage patterns
+
+All schemas are provided in both JSON and YAML formats for maximum compatibility.
 
 ## Release Status
 
@@ -266,3 +349,9 @@ This transforms COAIA Memory from **outcome-focused** to **journey-aware**, main
 COAIA Memory embodies the principle that **structure determines behavior**. By organizing memory around structural tension rather than problem-solving patterns, it creates a natural advancing structure that supports creative manifestation.
 
 The system recognizes that structural tension is the fundamental organizing principle of the creative process - not a problem to be solved, but a generative force to be harnessed.
+
+## KINSHIP
+
+* @KINSHIP.md
+
+
